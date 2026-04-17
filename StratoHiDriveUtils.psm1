@@ -37,11 +37,6 @@ if ($null -ne $syncRoot) {
 }
 
 Loads the module and reads the current HiDrive sync root from logs.
-
-.NOTE
-    Mail: dongrobione@proton.me
-.VERSION
-1.0
 #>
 
 Set-StrictMode -Version Latest
@@ -55,14 +50,19 @@ function Start-HiDrive {
 	Checks common installation paths and starts HiDrive if the executable exists.
 	Throws if no executable is found.
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+	[OutputType([void])]
 	param()
 
-	$hiDrivePotentialPaths = @(
-		(Join-Path $env:ProgramFiles 'STRATO\HiDrive\HiDrive.App.exe'),
-		(Join-Path ${env:ProgramFiles(x86)} 'STRATO\HiDrive\HiDrive.App.exe'),
-		(Join-Path $env:LocalAppData 'STRATO\HiDrive\HiDrive.App.exe')
-	)
+	$installationRoots = @(
+		$env:ProgramFiles
+		${env:ProgramFiles(x86)}
+		$env:LocalAppData
+	) | Where-Object { $_ }
+
+	$hiDrivePotentialPaths = foreach ($root in $installationRoots) {
+		Join-Path $root 'STRATO\HiDrive\HiDrive.App.exe'
+	}
 
 	$hiDrivePath = $hiDrivePotentialPaths |
 		Where-Object { Test-Path -LiteralPath $_ } |
@@ -72,7 +72,9 @@ function Start-HiDrive {
 		throw 'HiDrive.App.exe was not found in known installation paths.'
 	}
 
-	Start-Process -FilePath $hiDrivePath -ErrorAction Stop | Out-Null
+	if ($PSCmdlet.ShouldProcess($hiDrivePath, 'Start HiDrive application')) {
+		Start-Process -FilePath $hiDrivePath -ErrorAction Stop | Out-Null
+	}
 }
 
 function Stop-HiDrive {
@@ -86,7 +88,8 @@ function Stop-HiDrive {
 	HiDrive UI processes may take longer to close after the close request.
 	The function sends a graceful close request to all matching processes and returns immediately.
 	#>
-	[CmdletBinding()]
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
+	[OutputType([void])]
 	param()
 
 	$processes = Get-Process -Name '*HiDrive*' -ErrorAction SilentlyContinue
@@ -95,7 +98,9 @@ function Stop-HiDrive {
 	}
 
 	foreach ($process in $processes) {
-		$null = $process.CloseMainWindow()
+		if ($PSCmdlet.ShouldProcess($process.ProcessName, 'Request graceful shutdown')) {
+			$null = $process.CloseMainWindow()
+		}
 	}
 }
 
@@ -113,6 +118,7 @@ function Get-HiDriveSyncRoot {
 	System.String or $null
 	#>
 	[CmdletBinding()]
+	[OutputType([string])]
 	param()
 
 	$pattern = 'FileSystemSnapshot: Get file system snapshot started\. Root (?<Root>.+?)\s*\|'

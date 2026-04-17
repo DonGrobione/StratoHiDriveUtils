@@ -58,7 +58,7 @@ Import-Module "$PSScriptRoot\StratoHiDriveUtils.psd1" -Force
 ### 1) Start HiDrive
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Start-HiDrive
 ```
 
@@ -68,7 +68,7 @@ If no executable is found, the function throws an error.
 ### 2) Stop HiDrive
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Stop-HiDrive
 ```
 
@@ -80,7 +80,7 @@ In practice, `HiDrive.App` and `HiDrive.Sync` usually stop almost immediately, w
 ### 3) Read Sync Root Directory
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
 ```
 
@@ -95,7 +95,7 @@ If no matching log entry is found, the function returns `$null`.
 Optional guarded usage:
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 $syncRoot = Get-HiDriveSyncRoot
 if ($null -ne $syncRoot) {
     "Sync root: $syncRoot"
@@ -133,8 +133,9 @@ It extracts entries matching:
 
 ## Versioning
 
-- Module help version in `StratoHiDriveUtils.psm1`: `1.0`
-- Keep this README and module help examples in sync when behavior changes.
+- Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
+- Current manifest version: `1.1.0`.
+- The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ## License
 
