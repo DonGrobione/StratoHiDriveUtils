@@ -7,19 +7,19 @@ Provides functions to start and stop the HiDrive desktop app and to determine th
 current sync root folder from HiDrive log files.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Start-HiDrive
 
 Loads the module from the current directory and starts HiDrive.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Stop-HiDrive
 
 Loads the module and stops all running HiDrive processes.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
 
 Returns the sync root path directly, for example:
@@ -28,7 +28,7 @@ C:\Users\<User>\HiDrive
 If no entry is available in logs, the function returns $null.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psm1 -Force
+Import-Module .\StratoHiDriveUtils.psd1 -Force
 $syncRoot = Get-HiDriveSyncRoot
 if ($null -ne $syncRoot) {
 	"Sync root: $syncRoot"
@@ -83,10 +83,9 @@ function Stop-HiDrive {
 	Stops the STRATO HiDrive desktop application.
 
 	.DESCRIPTION
-	Requests shutdown for all running processes with HiDrive in the process name.
-	In practice, HiDrive.App and HiDrive.Sync usually stop almost immediately.
-	HiDrive UI processes may take longer to close after the close request.
-	The function sends a graceful close request to all matching processes and returns immediately.
+	Stops all running processes with HiDrive in the process name.
+	First requests a graceful close for UI processes and then, after a short wait,
+	forces termination of any remaining matching processes.
 	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
@@ -97,9 +96,25 @@ function Stop-HiDrive {
 		return
 	}
 
-	foreach ($process in $processes) {
-		if ($PSCmdlet.ShouldProcess($process.ProcessName, 'Request graceful shutdown')) {
+	$gracefulProcesses = $processes | Where-Object { $_.MainWindowHandle -ne 0 }
+	foreach ($process in $gracefulProcesses) {
+		if ($PSCmdlet.ShouldProcess("$($process.ProcessName) (PID $($process.Id))", 'Request graceful shutdown')) {
 			$null = $process.CloseMainWindow()
+		}
+	}
+
+	if ($gracefulProcesses) {
+		Start-Sleep -Milliseconds 1500
+	}
+
+	$remainingProcesses = Get-Process -Name '*HiDrive*' -ErrorAction SilentlyContinue
+	if (-not $remainingProcesses) {
+		return
+	}
+
+	foreach ($process in $remainingProcesses) {
+		if ($PSCmdlet.ShouldProcess("$($process.ProcessName) (PID $($process.Id))", 'Force stop remaining process')) {
+			Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
 		}
 	}
 }

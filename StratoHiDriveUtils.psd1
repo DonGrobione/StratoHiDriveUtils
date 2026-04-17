@@ -1,6 +1,6 @@
 @{
     RootModule = 'StratoHiDriveUtils.psm1'
-    ModuleVersion = '1.1.0'
+    ModuleVersion = '1.1.1'
     GUID = '3f7a9868-f796-4d67-8f86-b77767531bb4'
     Author = 'DonGrobione'
     CompanyName = 'Independent'
