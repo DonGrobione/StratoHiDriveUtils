@@ -38,19 +38,42 @@ It exports three functions:
 - Installed STRATO HiDrive desktop client
 - Read access to `%LOCALAPPDATA%\HiDrive\Logs` and `%LOCALAPPDATA%\HiDrive\Data`
 
-## Installation and Import
+## Installation (Git Sync to the module folder)
 
-Run from the project root directory:
+Copy the matching block and paste it into your shell.
+
+### Windows PowerShell 5.1 (Install)
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+New-Item -ItemType Directory -Path "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" -Force | Out-Null
+git clone https://github.com/DonGrobione/StratoHiDriveUtils.git "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils"
+Import-Module StratoHiDriveUtils -Force
 Get-Command -Module StratoHiDriveUtils
 ```
 
-If the module name is not automatically resolved from file name in your session:
+### Windows PowerShell 5.1 (Update)
 
 ```powershell
-Import-Module "$PSScriptRoot\StratoHiDriveUtils.psd1" -Force
+git -C "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" pull
+Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
+Import-Module StratoHiDriveUtils -Force
+```
+
+### PowerShell 7+ (Install)
+
+```powershell
+New-Item -ItemType Directory -Path "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" -Force | Out-Null
+git clone https://github.com/DonGrobione/StratoHiDriveUtils.git "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils"
+Import-Module StratoHiDriveUtils -Force
+Get-Command -Module StratoHiDriveUtils
+```
+
+### PowerShell 7+ (Update)
+
+```powershell
+git -C "$(($env:PSModulePath -split ';')[0])\Documents\PowerShell\Modules\StratoHiDriveUtils" pull
+Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
+Import-Module StratoHiDriveUtils -Force
 ```
 
 ## Usage
@@ -73,9 +96,9 @@ Stop-HiDrive
 ```
 
 `Stop-HiDrive` stops all processes whose name matches `*HiDrive*`.
-The function sends a graceful close request to all matching processes and returns immediately.
+The function first sends a graceful close request and then force-stops remaining matching processes.
 If no process is running, it exits without error.
-In practice, `HiDrive.App` and `HiDrive.Sync` usually stop almost immediately, while `HiDrive UI` can take longer to close.
+In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
 
 ### 3) Read Sync Root Directory
 
@@ -134,7 +157,7 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `1.1.0`.
+- Current manifest version: `1.1.1`.
 - The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ## License
