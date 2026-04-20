@@ -38,7 +38,31 @@ It exports three functions:
 - Installed STRATO HiDrive desktop client
 - Read access to `%LOCALAPPDATA%\HiDrive\Logs` and `%LOCALAPPDATA%\HiDrive\Data`
 
-## Installation (Git Sync to the module folder)
+## Installation
+
+### Option 1: ZIP Download (recommended for quick installation)
+
+The latest version is available as a ZIP file on the [Releases page](https://github.com/DonGrobione/StratoHiDriveUtils/releases).
+
+After downloading, extract the ZIP into the appropriate module directory:
+
+| PowerShell Version | Target Directory |
+|--------------------|------------------|
+| Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\StratoHiDriveUtils` |
+| PowerShell 7+ | `%USERPROFILE%\Documents\PowerShell\Modules\StratoHiDriveUtils` |
+
+> **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module.
+
+Then load the module:
+
+```powershell
+Import-Module StratoHiDriveUtils -Force
+Get-Command -Module StratoHiDriveUtils
+```
+
+---
+
+### Option 2: Git Sync (recommended for easy updates)
 
 Copy the matching block and paste it into your shell.
 
