@@ -3,17 +3,21 @@ name: Publish PowerShell Module
 on:
   push:
     branches: [main]
+  
+permissions:
+  contents: write
 
 jobs:
   build-zip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Create ZIP
         id: create_zip
         shell: bash
         run: |
-          ZIP_NAME="StratoHiDriveUtils-${GITHUB_SHA::7}.zip"
+          ZIP_NAME="StratoHiDriveUtils-main-${GITHUB_SHA::7}.zip"
           git ls-files ':!/.github/**' ':!/.gitignore' > files_to_zip.txt
           if [ ! -s files_to_zip.txt ]; then
             echo "No files to archive."
@@ -21,6 +25,14 @@ jobs:
           fi
           zip -r "$ZIP_NAME" -@ < files_to_zip.txt
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: main-${{ github.run_number }}-${{ github.sha }}
+          name: Main Build #${{ github.run_number }}
+          body: Automatisches ZIP-Paket aus dem main-Branch.
+          files: ${{ steps.create_zip.outputs.zip_name }}
 
       - name: Upload ZIP artifact
         uses: actions/upload-artifact@v4
