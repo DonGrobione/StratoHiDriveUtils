@@ -1,15 +1,7 @@
 # StratoHiDriveUtils
 
 PowerShell module for controlling the STRATO HiDrive desktop application and reading the configured sync root directory from HiDrive logs.
-
-## Disclaimer
-
-I am in no way affiliated with STRATO or HiDrive.
-This project is an independent, unofficial utility module and is not endorsed by, sponsored by, or connected to STRATO/HiDrive.
-
-## AI Usage
-
-This module was created with support from AI/KI tooling.
+This module was primarily created for personal use.
 
 ## Project Structure
 
@@ -35,7 +27,7 @@ It exports three functions:
 
 - Windows
 - PowerShell 5.1+ (PowerShell 7 also works)
-- Installed STRATO HiDrive desktop client
+- Installed STRATO [HiDrive desktop client](https://static.hidrive.com/windows/0000)
 - Read access to `%LOCALAPPDATA%\HiDrive\Logs` and `%LOCALAPPDATA%\HiDrive\Data`
 
 ## Installation
@@ -95,7 +87,7 @@ Get-Command -Module StratoHiDriveUtils
 ### PowerShell 7+ (Update)
 
 ```powershell
-git -C "$(($env:PSModulePath -split ';')[0])\Documents\PowerShell\Modules\StratoHiDriveUtils" pull
+git -C "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" pull
 Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
 Import-Module StratoHiDriveUtils -Force
 ```
@@ -105,7 +97,7 @@ Import-Module StratoHiDriveUtils -Force
 ### 1) Start HiDrive
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module StratoHiDriveUtils -Force
 Start-HiDrive
 ```
 
@@ -115,7 +107,7 @@ If no executable is found, the function throws an error.
 ### 2) Stop HiDrive
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module StratoHiDriveUtils -Force
 Stop-HiDrive
 ```
 
@@ -127,7 +119,7 @@ In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
 ### 3) Read Sync Root Directory
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module StratoHiDriveUtils -Force
 Get-HiDriveSyncRoot
 ```
 
@@ -142,7 +134,7 @@ If no matching log entry is found, the function returns `$null`.
 Optional guarded usage:
 
 ```powershell
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module StratoHiDriveUtils -Force
 $syncRoot = Get-HiDriveSyncRoot
 if ($null -ne $syncRoot) {
     "Sync root: $syncRoot"
@@ -181,10 +173,17 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `1.1.1`.
+- Current manifest version: `1.1.3`.
 - The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ## License
 
-This project is licensed under the MIT License.
-See `License.md` for the full license text.
+This project is licensed under the MIT License. See `License.md` for the full license text.
+
+## Disclaimer
+
+I am in no way affiliated with STRATO or HiDrive. This project is an independent, unofficial utility module and is not endorsed by, sponsored by, or connected to STRATO/HiDrive.
+
+## AI Usage
+
+This module was created with support from AI/KI tooling.
