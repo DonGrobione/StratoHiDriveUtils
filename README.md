@@ -56,7 +56,7 @@ Get-Command -Module StratoHiDriveUtils
 
 ### Option 2: Git Sync (recommended for easy updates)
 
-Copy the matching block and paste it into your shell.
+Copy the matching block and paste it into your PowerShell.
 
 ### Windows PowerShell 5.1 (Install)
 
