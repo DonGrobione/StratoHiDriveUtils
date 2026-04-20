@@ -13,11 +13,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Read version and commit message
+        id: meta
+        shell: pwsh
+        run: |
+          $version = (Import-PowerShellDataFile 'StratoHiDriveUtils.psd1').ModuleVersion
+          $commitMsg = git log -1 --pretty=%s
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "commit_msg=$commitMsg" >> $env:GITHUB_OUTPUT
+
       - name: Create ZIP
         id: create_zip
         shell: bash
         run: |
-          ZIP_NAME="StratoHiDriveUtils-main-${GITHUB_SHA::7}.zip"
+          ZIP_NAME="StratoHiDriveUtils-${{ steps.meta.outputs.version }}.zip"
           git ls-files ':!/.github/**' ':!/.gitignore' > files_to_zip.txt
           if [ ! -s files_to_zip.txt ]; then
             echo "No files to archive."
@@ -29,9 +38,9 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: main-${{ github.run_number }}-${{ github.sha }}
-          name: Main Build #${{ github.run_number }}
-          body: Automatisches ZIP-Paket aus dem main-Branch.
+          tag_name: v${{ steps.meta.outputs.version }}
+          name: v${{ steps.meta.outputs.version }}
+          body: ${{ steps.meta.outputs.commit_msg }}
           files: ${{ steps.create_zip.outputs.zip_name }}
 
       - name: Upload ZIP artifact
