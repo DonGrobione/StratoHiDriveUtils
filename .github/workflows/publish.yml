@@ -4,73 +4,26 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-
 jobs:
-  build-and-release:
+  build-zip:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Detect manifest version change
-        id: version
-        shell: pwsh
-        run: |
-            $manifestPath = 'StratoHiDriveUtils.psd1'
-            $currentManifest = Import-PowerShellDataFile $manifestPath
-            $currentVersion = [string]$currentManifest.ModuleVersion
-
-            # Default when we can't determine a previous version
-            $previousVersion = ''
-
-            # Only try to read HEAD^ if it exists
-            if (git rev-parse --verify HEAD^ 2>$null) {
-            $previousContent = git show "HEAD^:$manifestPath" 2>$null
-            if ($previousContent) {
-                $tempFile = Join-Path $env:RUNNER_TEMP 'previous_manifest.psd1'
-                Set-Content -Path $tempFile -Value $previousContent -Encoding UTF8
-                $previousManifest = Import-PowerShellDataFile $tempFile
-                $previousVersion = [string]$previousManifest.ModuleVersion
-            } else {
-                Write-Host "No previous manifest found in git history."
-            }
-            } else {
-            Write-Host "No previous commit (HEAD^) found; treating as first release."
-            }
-
-            $versionChanged = $currentVersion -ne $previousVersion
-
-            "current_version=$currentVersion" >> $env:GITHUB_OUTPUT
-            "previous_version=$previousVersion" >> $env:GITHUB_OUTPUT
-            "version_changed=$($versionChanged.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
-            "zip_name=StratoHiDriveUtils-$currentVersion.zip" >> $env:GITHUB_OUTPUT
-
-            Write-Host "Previous version: '$previousVersion'"
-            Write-Host "Current version:  '$currentVersion'"
-            Write-Host "Version changed:  $versionChanged"
-      
       - name: Create ZIP
-        if: steps.version.outputs.version_changed == 'true'
-        shell: pwsh
+        id: create_zip
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Path package/StratoHiDriveUtils -Force | Out-Null
-          Copy-Item -Path StratoHiDriveUtils.psd1 -Destination package/StratoHiDriveUtils/
-          Copy-Item -Path StratoHiDriveUtils.psm1 -Destination package/StratoHiDriveUtils/
-          if (Test-Path README.md) { Copy-Item -Path README.md -Destination package/StratoHiDriveUtils/ }
-          if (Test-Path License.md) { Copy-Item -Path License.md -Destination package/StratoHiDriveUtils/ }
+          ZIP_NAME="StratoHiDriveUtils-${GITHUB_SHA::7}.zip"
+          git ls-files ':!/.github/**' ':!/.gitignore' > files_to_zip.txt
+          if [ ! -s files_to_zip.txt ]; then
+            echo "No files to archive."
+            exit 1
+          fi
+          zip -r "$ZIP_NAME" -@ < files_to_zip.txt
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-          Compress-Archive -Path package/StratoHiDriveUtils -DestinationPath "${{ steps.version.outputs.zip_name }}" -Force
-
-      - name: Skip release when version is unchanged
-        if: steps.version.outputs.version_changed != 'true'
-        run: echo "Manifest version unchanged. Skipping release."
-      
-      - name: Create Release
-        if: steps.version.outputs.version_changed == 'true'
-        uses: softprops/action-gh-release@v1
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: v${{ steps.version.outputs.current_version }}
-          files: ${{ steps.version.outputs.zip_name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: package-${{ github.sha }}
+          path: ${{ steps.create_zip.outputs.zip_name }}
