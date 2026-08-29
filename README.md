@@ -178,7 +178,7 @@ It extracts entries matching:
 
 ## License
 
-This project is licensed under the MIT License. See `License.md` for the full license text.
+This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0). See `License.md` for the full license text.
 
 ## Disclaimer
 
