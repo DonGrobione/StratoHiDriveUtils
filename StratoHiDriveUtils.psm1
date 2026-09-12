@@ -3,29 +3,23 @@
 PowerShell module to control STRATO HiDrive and read the configured sync root.
 
 .DESCRIPTION
-Provides functions to start and stop the HiDrive desktop app and to determine the
-current sync root folder from HiDrive log files.
+Provides functions to start and stop the HiDrive desktop app and to determine the current sync root folder from HiDrive log files.
 
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
 Start-HiDrive
-
 Loads the module from the current directory and starts HiDrive.
 
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
 Stop-HiDrive
-
 Loads the module and stops all running HiDrive processes.
 
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
-
 Returns the sync root path directly, for example:
-C:\Users\<User>\HiDrive
-
-If no entry is available in logs, the function returns $null.
+Returns the sync root path directly, for example: C:\Users\<User>\HiDrive. If no entry is available in logs, the function returns $null.
 
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
@@ -35,21 +29,14 @@ if ($null -ne $syncRoot) {
 } else {
 	"No sync root entry found in HiDrive logs."
 }
-
 Loads the module and reads the current HiDrive sync root from logs.
 #>
 
 Set-StrictMode -Version Latest
 
+# Starts the STRATO HiDrive desktop application from a known installation path.
+# Throws an error when the executable cannot be found.
 function Start-HiDrive {
-	<#
-	.SYNOPSIS
-	Starts the STRATO HiDrive desktop application.
-
-	.DESCRIPTION
-	Checks common installation paths and starts HiDrive if the executable exists.
-	Throws if no executable is found.
-	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
 	param()
@@ -77,16 +64,8 @@ function Start-HiDrive {
 	}
 }
 
+# Stops all running STRATO HiDrive processes gracefully when possible and forcefully as a fallback.
 function Stop-HiDrive {
-	<#
-	.SYNOPSIS
-	Stops the STRATO HiDrive desktop application.
-
-	.DESCRIPTION
-	Stops all running processes with HiDrive in the process name.
-	First requests a graceful close for UI processes and then, after a short wait,
-	forces termination of any remaining matching processes.
-	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
 	param()
@@ -119,19 +98,9 @@ function Stop-HiDrive {
 	}
 }
 
+# Reads the latest HiDrive sync root path from the current or legacy log files.
+# Returns null when no matching log entry is available.
 function Get-HiDriveSyncRoot {
-	<#
-	.SYNOPSIS
-	Returns the HiDrive sync root folder path.
-
-	.DESCRIPTION
-	Reads HiDrive logs and extracts the latest root folder path from
-	"FileSystemSnapshot: Get file system snapshot started. Root ... |" entries.
-	Returns $null if no matching log entry exists.
-
-	.OUTPUTS
-	System.String or $null
-	#>
 	[CmdletBinding()]
 	[OutputType([string])]
 	param()
@@ -185,16 +154,9 @@ function Get-HiDriveSyncRoot {
 	return $null
 }
 
+# Checks origin/main and updates the module with a fast-forward-only Git pull.
+# The update is allowed only for a clean working tree on the local main branch.
 function Update-StratoHiDriveUtilsGit {
-	<#
-	.SYNOPSIS
-	Updates the module from the origin/main Git branch.
-
-	.DESCRIPTION
-	Requires the module to be installed from a Git working tree. The update is
-	performed only when the current local branch is main and the working tree is
-	clean. Local changes are never overwritten.
-	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 	[OutputType([pscustomobject])]
 	param()
