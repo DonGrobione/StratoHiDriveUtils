@@ -18,7 +18,6 @@ Loads the module and stops all running HiDrive processes.
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
-Returns the sync root path directly, for example:
 Returns the sync root path directly, for example: C:\Users\<User>\HiDrive. If no entry is available in logs, the function returns $null.
 
 .EXAMPLE
@@ -93,7 +92,12 @@ function Stop-HiDrive {
 
 	foreach ($process in $remainingProcesses) {
 		if ($PSCmdlet.ShouldProcess("$($process.ProcessName) (PID $($process.Id))", 'Force stop remaining process')) {
-			Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+			try {
+				Stop-Process -Id $process.Id -Force -ErrorAction Stop
+			}
+			catch {
+				Write-Verbose "Unable to force-stop process '$($process.ProcessName)' (PID $($process.Id))."
+			}
 		}
 	}
 }
@@ -120,7 +124,7 @@ function Get-HiDriveSyncRoot {
 			}
 		}
 		catch {
-			# Continue with legacy fallback if the current log cannot be read.
+			Write-Verbose "Unable to read the current HiDrive log. Continuing with the legacy log search."
 		}
 	}
 
@@ -146,6 +150,7 @@ function Get-HiDriveSyncRoot {
 				}
 			}
 			catch {
+				Write-Verbose "Unable to read the legacy HiDrive sync log at '$syncLogPath'. Continuing with the next log."
 				continue
 			}
 		}
@@ -166,6 +171,10 @@ function Update-StratoHiDriveUtils {
 	$manifestPath = Join-Path $modulePath "$moduleName.psd1"
 	if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 		throw "The active module manifest was not found at '$manifestPath'."
+	}
+	$gitMetadataPath = Join-Path $modulePath '.git'
+	if (Test-Path -LiteralPath $gitMetadataPath) {
+		throw "The active module path '$modulePath' is a Git installation. Replace it with the ZIP release before using Update-StratoHiDriveUtils."
 	}
 
 	$modulePathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator | Where-Object { $_ })

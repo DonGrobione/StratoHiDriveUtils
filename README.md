@@ -7,8 +7,8 @@ This module was primarily created for personal use.
 
 ```text
 StratoHiDriveUtils/
-|-- .gitignore                # Git ignore rules
-|-- License.md                # MIT license for this project
+|-- License.md                # CC BY-NC-SA 4.0 license for this project
+|-- Install-StratoHiDriveUtils.ps1 # One-command installer for the latest release
 |-- StratoHiDriveUtils.psd1   # Module manifest
 |-- StratoHiDriveUtils.psm1   # Main module with exported functions
 `-- README.md                 # This documentation
@@ -33,7 +33,21 @@ It exports three functions:
 
 ## Installation
 
-### Option 1: ZIP Download (recommended for quick installation)
+### Option 1: One-Command Installer (recommended)
+
+Copy the following single line into Windows PowerShell 5.1. It downloads and
+runs the installer directly:
+
+```powershell
+irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/main/Install-StratoHiDriveUtils.ps1 | iex
+```
+
+The installer downloads the latest GitHub ZIP release and checks the manifest
+version before installation. If the current ZIP release is already installed,
+it reports this and makes no changes. Older installations and Git installations
+are removed and replaced at the Windows PowerShell 5.1 user module path.
+
+### Option 2: ZIP Download (manual installation)
 
 The latest version is available as a ZIP file on the [Releases page](https://github.com/DonGrobione/StratoHiDriveUtils/releases).
 
@@ -99,6 +113,8 @@ If no matching log entry is found, the function returns `$null`.
 currently loaded module installation in place. It does not create a second
 module directory. The active module path must be present in the current
 PowerShell version's `PSModulePath`, and duplicate installations are rejected.
+Existing Git installations must be replaced with the ZIP release first; the
+update command does not overwrite a Git working tree.
 
 ```powershell
 Import-Module StratoHiDriveUtils -Force
@@ -162,6 +178,18 @@ It extracts entries matching:
 - Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
 - Current manifest version: `1.1.3`.
 - The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
+
+### Create a New Release
+
+1. Update `ModuleVersion` in `StratoHiDriveUtils.psd1`, for example from `1.1.3` to `1.1.4`.
+2. Commit the changes and merge them into `main`.
+3. Push `main` to GitHub.
+
+The GitHub Actions workflow runs automatically when `main` is updated. It reads
+the manifest version, creates `StratoHiDriveUtils-<version>.zip`, creates the
+GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached.
+The tag must not already exist. For version `1.1.4`, the workflow creates tag
+`v1.1.4` and release file `StratoHiDriveUtils-1.1.4.zip`.
 
 ## License
 
