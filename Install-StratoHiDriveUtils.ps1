@@ -74,9 +74,16 @@ try {
 
 	$action = "Replace existing StratoHiDriveUtils installations with release $releaseVersion at '$targetPath'"
 	$shouldInstall = $false
-	if ($Force -and -not $WhatIfPreference) {
+	$forceValue = Get-Variable -Name Force -ValueOnly -ErrorAction SilentlyContinue
+	$whatIfValue = Get-Variable -Name WhatIfPreference -ValueOnly -ErrorAction SilentlyContinue
+	$cmdletValue = Get-Variable -Name PSCmdlet -ValueOnly -ErrorAction SilentlyContinue
+	if ($whatIfValue) {
+		$shouldInstall = $false
+	} elseif ($forceValue) {
 		$shouldInstall = $true
-	} elseif ($PSCmdlet.ShouldProcess($targetPath, $action)) {
+	} elseif ($null -ne $cmdletValue -and $cmdletValue.ShouldProcess($targetPath, $action)) {
+		$shouldInstall = $true
+	} elseif ($null -eq $cmdletValue) {
 		$shouldInstall = $true
 	}
 	if (-not $shouldInstall) {
