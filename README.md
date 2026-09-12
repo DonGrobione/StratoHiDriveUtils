@@ -22,7 +22,7 @@ It exports three functions:
 - `Start-HiDrive`
 - `Stop-HiDrive`
 - `Get-HiDriveSyncRoot`
-- `Update-StratoHiDriveUtilsGit`
+- `Update-StratoHiDriveUtils`
 
 ## Requirements
 
@@ -44,7 +44,7 @@ After downloading, extract the ZIP into the appropriate module directory:
 | Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\StratoHiDriveUtils` |
 | PowerShell 7+ | `%USERPROFILE%\Documents\PowerShell\Modules\StratoHiDriveUtils` |
 
-> **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module.
+> **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module. Keep only one installation in the active PowerShell version's `PSModulePath`.
 
 Then load the module:
 
@@ -54,44 +54,6 @@ Get-Command -Module StratoHiDriveUtils
 ```
 
 ---
-
-### Option 2: Git Sync (recommended for easy updates)
-
-Copy the matching block and paste it into your PowerShell.
-
-### Windows PowerShell 5.1 (Install)
-
-```powershell
-New-Item -ItemType Directory -Path "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" -Force | Out-Null
-git clone https://github.com/DonGrobione/StratoHiDriveUtils.git "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils"
-Import-Module StratoHiDriveUtils -Force
-Get-Command -Module StratoHiDriveUtils
-```
-
-### Windows PowerShell 5.1 (Update)
-
-```powershell
-git -C "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" pull
-Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
-Import-Module StratoHiDriveUtils -Force
-```
-
-### PowerShell 7+ (Install)
-
-```powershell
-New-Item -ItemType Directory -Path "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" -Force | Out-Null
-git clone https://github.com/DonGrobione/StratoHiDriveUtils.git "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils"
-Import-Module StratoHiDriveUtils -Force
-Get-Command -Module StratoHiDriveUtils
-```
-
-### PowerShell 7+ (Update)
-
-```powershell
-git -C "$(($env:PSModulePath -split ';')[0])\StratoHiDriveUtils" pull
-Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
-Import-Module StratoHiDriveUtils -Force
-```
 
 ## Usage
 
@@ -132,23 +94,22 @@ C:\Users\<User>\HiDrive
 
 If no matching log entry is found, the function returns `$null`.
 
-### 4) Update from Git
+### 4) Update from the ZIP Release
 
-`Update-StratoHiDriveUtilsGit` checks for updates in `origin/main` and updates
-the module with `git pull --ff-only`. The module must have been installed by
-Git, the current branch must be `main`, and the working tree must be clean.
-Local changes are never overwritten. ZIP installations are not supported by
-this command.
+`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the
+currently loaded module installation in place. It does not create a second
+module directory. The active module path must be present in the current
+PowerShell version's `PSModulePath`, and duplicate installations are rejected.
 
 ```powershell
 Import-Module StratoHiDriveUtils -Force
-Update-StratoHiDriveUtilsGit
+Update-StratoHiDriveUtils
 ```
 
-To check the behavior without changing anything, use `-WhatIf`:
+To check the available version without changing anything, use `-WhatIf`:
 
 ```powershell
-Update-StratoHiDriveUtilsGit -WhatIf
+Update-StratoHiDriveUtils -WhatIf
 ```
 
 After a successful update, reload the module:

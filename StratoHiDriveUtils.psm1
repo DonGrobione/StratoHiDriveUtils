@@ -154,96 +154,124 @@ function Get-HiDriveSyncRoot {
 	return $null
 }
 
-# Checks origin/main and updates the module with a fast-forward-only Git pull.
-# The update is allowed only for a clean working tree on the local main branch.
-function Update-StratoHiDriveUtilsGit {
+# Downloads and installs the latest GitHub ZIP release into the active module path.
+# The update is blocked when multiple installations exist in the current PSModulePath.
+function Update-StratoHiDriveUtils {
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 	[OutputType([pscustomobject])]
 	param()
 
-	$gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue |
-		Select-Object -First 1
-	if (-not $gitCommand) {
-		throw 'Git was not found. Install Git and ensure git.exe is available in PATH.'
+	$moduleName = $ExecutionContext.SessionState.Module.Name
+	$modulePath = [System.IO.Path]::GetFullPath($PSScriptRoot)
+	$manifestPath = Join-Path $modulePath "$moduleName.psd1"
+	if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+		throw "The active module manifest was not found at '$manifestPath'."
 	}
 
-	$modulePath = $PSScriptRoot
-	$gitOutput = & $gitCommand.Source -C $modulePath rev-parse --is-inside-work-tree 2>&1
-	if ($LASTEXITCODE -ne 0 -or ($gitOutput -join '').Trim() -ne 'true') {
-		throw 'The module is not installed from a Git working tree. ZIP installations cannot be updated with this command.'
+	$modulePathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator | Where-Object { $_ })
+	$moduleCandidates = foreach ($modulePathEntry in $modulePathEntries) {
+		$candidatePath = Join-Path $modulePathEntry $moduleName
+		$candidateManifest = Join-Path $candidatePath "$moduleName.psd1"
+		if (Test-Path -LiteralPath $candidateManifest -PathType Leaf) {
+			[System.IO.Path]::GetFullPath($candidatePath)
+		}
+	}
+	$moduleCandidates = @($moduleCandidates | Sort-Object -Unique)
+	if ($moduleCandidates.Count -eq 0 -or $moduleCandidates -notcontains $modulePath) {
+		throw "The active module path '$modulePath' is not a standard installation path in the current PSModulePath."
+	}
+	if ($moduleCandidates.Count -gt 1) {
+		throw "Multiple '$moduleName' installations were found in the current PSModulePath. Remove duplicates before updating: $($moduleCandidates -join '; ')"
 	}
 
-	$branch = (& $gitCommand.Source -C $modulePath rev-parse --abbrev-ref HEAD 2>&1 | Out-String).Trim()
-	if ($LASTEXITCODE -ne 0) {
-		throw 'Unable to determine the current Git branch.'
-	}
-	if ($branch -ne 'main') {
-		if ($WhatIfPreference) {
+	$localManifest = Import-PowerShellDataFile -LiteralPath $manifestPath
+	$localVersion = [version]$localManifest.ModuleVersion
+	$temporaryRoot = $null
+	$backupPath = $null
+
+	try {
+		$release = Invoke-RestMethod -Uri 'https://api.github.com/repos/DonGrobione/StratoHiDriveUtils/releases/latest' -Headers @{
+			Accept = 'application/vnd.github+json'
+			'User-Agent' = $moduleName
+			'X-GitHub-Api-Version' = '2022-11-28'
+		} -Method Get -ErrorAction Stop
+
+		$releaseAsset = @($release.assets | Where-Object { $_.name -match '^StratoHiDriveUtils-[0-9]+\.[0-9]+\.[0-9]+\.zip$' })
+		if ($releaseAsset.Count -ne 1) {
+			throw 'The latest GitHub release does not contain exactly one valid module ZIP asset.'
+		}
+
+		$remoteVersion = [version]($releaseAsset[0].name -replace '^StratoHiDriveUtils-|\.zip$')
+		if ($remoteVersion -le $localVersion) {
 			return [pscustomobject]@{
-				Status = 'Skipped'
-				Branch = $branch
-				Reason = "The Git update is restricted to branch 'main'."
+				Status = 'UpToDate'
+				LocalVersion = $localVersion.ToString()
+				RemoteVersion = $remoteVersion.ToString()
+				ModulePath = $modulePath
 			}
 		}
 
-		throw "The Git update is restricted to branch 'main'. The current branch is '$branch'."
-	}
-
-	$status = @(& $gitCommand.Source -C $modulePath status --porcelain 2>&1)
-	if ($LASTEXITCODE -ne 0) {
-		throw 'Unable to inspect the Git working tree.'
-	}
-	if ($status.Count -gt 0) {
-		throw 'The Git working tree contains local changes. Commit or stash them before updating.'
-	}
-
-	$fetchOutput = & $gitCommand.Source -C $modulePath fetch origin main 2>&1
-	if ($LASTEXITCODE -ne 0) {
-		throw "Git could not fetch origin/main: $($fetchOutput -join ' ')"
-	}
-
-	$localCommit = (& $gitCommand.Source -C $modulePath rev-parse HEAD 2>&1 | Out-String).Trim()
-	$remoteCommit = (& $gitCommand.Source -C $modulePath rev-parse origin/main 2>&1 | Out-String).Trim()
-	if ($LASTEXITCODE -ne 0) {
-		throw 'Unable to compare the local branch with origin/main.'
-	}
-
-	if ($localCommit -eq $remoteCommit) {
-		return [pscustomobject]@{
-			Status = 'UpToDate'
-			Branch = $branch
-			LocalCommit = $localCommit
-			RemoteCommit = $remoteCommit
-		}
-	}
-
-	$ancestorCheck = & $gitCommand.Source -C $modulePath merge-base --is-ancestor HEAD origin/main 2>&1
-	if ($LASTEXITCODE -ne 0) {
-		throw 'The local main branch cannot be fast-forwarded to origin/main. Resolve the branch history manually.'
-	}
-
-	if ($PSCmdlet.ShouldProcess($modulePath, 'Update from origin/main with git pull --ff-only')) {
-		$pullOutput = & $gitCommand.Source -C $modulePath pull --ff-only origin main 2>&1
-		if ($LASTEXITCODE -ne 0) {
-			throw "Git could not update the module: $($pullOutput -join ' ')"
+		if (-not $PSCmdlet.ShouldProcess($modulePath, "Install StratoHiDriveUtils $remoteVersion from the GitHub ZIP release")) {
+			return [pscustomobject]@{
+				Status = 'UpdateAvailable'
+				LocalVersion = $localVersion.ToString()
+				RemoteVersion = $remoteVersion.ToString()
+				ModulePath = $modulePath
+			}
 		}
 
-		$newCommit = (& $gitCommand.Source -C $modulePath rev-parse HEAD 2>&1 | Out-String).Trim()
+		$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-update-$([guid]::NewGuid().ToString('N'))"
+		$backupPath = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-backup-$([guid]::NewGuid().ToString('N'))"
+		$zipPath = Join-Path $temporaryRoot $releaseAsset[0].name
+		New-Item -ItemType Directory -Path $temporaryRoot -Force -ErrorAction Stop | Out-Null
+		Invoke-WebRequest -Uri $releaseAsset[0].browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+		$extractPath = Join-Path $temporaryRoot 'Extracted'
+		Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
+
+		$packageManifest = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
+		if ($packageManifest.Count -ne 1) {
+			throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
+		}
+		$packageRoot = $packageManifest[0].Directory.FullName
+		$packageData = Import-PowerShellDataFile -LiteralPath $packageManifest[0].FullName
+		$packageVersion = [version]$packageData.ModuleVersion
+		if ($packageVersion -ne $remoteVersion) {
+			throw "The ZIP asset version $remoteVersion does not match the manifest version $packageVersion."
+		}
+
+		Copy-Item -LiteralPath $modulePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
+		try {
+			$packageFiles = Get-ChildItem -LiteralPath $packageRoot -File -Recurse -ErrorAction Stop
+			foreach ($packageFile in $packageFiles) {
+				$relativePath = $packageFile.FullName.Substring($packageRoot.Length).TrimStart('\', '/')
+				$destinationPath = Join-Path $modulePath $relativePath
+				$destinationDirectory = Split-Path -Path $destinationPath -Parent
+				New-Item -ItemType Directory -Path $destinationDirectory -Force -ErrorAction Stop | Out-Null
+				Copy-Item -LiteralPath $packageFile.FullName -Destination $destinationPath -Force -ErrorAction Stop
+			}
+		}
+		catch {
+			Get-ChildItem -LiteralPath $modulePath -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+			Copy-Item -Path (Join-Path $backupPath '*') -Destination $modulePath -Recurse -Force -ErrorAction Stop
+			throw
+		}
+
 		return [pscustomobject]@{
 			Status = 'Updated'
-			Branch = $branch
-			LocalCommit = $newCommit
-			RemoteCommit = $remoteCommit
+			LocalVersion = $localVersion.ToString()
+			RemoteVersion = $remoteVersion.ToString()
+			ModulePath = $modulePath
 			ReloadRequired = $true
 		}
 	}
-
-	return [pscustomobject]@{
-		Status = 'UpdateAvailable'
-		Branch = $branch
-		LocalCommit = $localCommit
-		RemoteCommit = $remoteCommit
+	finally {
+		if ($temporaryRoot) {
+			Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+		}
+		if ($backupPath) {
+			Remove-Item -LiteralPath $backupPath -Recurse -Force -ErrorAction SilentlyContinue
+		}
 	}
 }
 
-Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot, Update-StratoHiDriveUtilsGit
+Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot, Update-StratoHiDriveUtils
