@@ -39,7 +39,7 @@ Copy the following single line into Windows PowerShell 5.1. It downloads and
 runs the installer directly:
 
 ```powershell
-irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/main/Install-StratoHiDriveUtils.ps1 | iex
+irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/5948981/Install-StratoHiDriveUtils.ps1 | iex
 ```
 
 The installer downloads the latest GitHub ZIP release and checks the manifest
