@@ -185,4 +185,103 @@ function Get-HiDriveSyncRoot {
 	return $null
 }
 
-Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot
+function Update-StratoHiDriveUtilsGit {
+	<#
+	.SYNOPSIS
+	Updates the module from the origin/main Git branch.
+
+	.DESCRIPTION
+	Requires the module to be installed from a Git working tree. The update is
+	performed only when the current local branch is main and the working tree is
+	clean. Local changes are never overwritten.
+	#>
+	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
+	[OutputType([pscustomobject])]
+	param()
+
+	$gitCommand = Get-Command git -CommandType Application -ErrorAction SilentlyContinue |
+		Select-Object -First 1
+	if (-not $gitCommand) {
+		throw 'Git was not found. Install Git and ensure git.exe is available in PATH.'
+	}
+
+	$modulePath = $PSScriptRoot
+	$gitOutput = & $gitCommand.Source -C $modulePath rev-parse --is-inside-work-tree 2>&1
+	if ($LASTEXITCODE -ne 0 -or ($gitOutput -join '').Trim() -ne 'true') {
+		throw 'The module is not installed from a Git working tree. ZIP installations cannot be updated with this command.'
+	}
+
+	$branch = (& $gitCommand.Source -C $modulePath rev-parse --abbrev-ref HEAD 2>&1 | Out-String).Trim()
+	if ($LASTEXITCODE -ne 0) {
+		throw 'Unable to determine the current Git branch.'
+	}
+	if ($branch -ne 'main') {
+		if ($WhatIfPreference) {
+			return [pscustomobject]@{
+				Status = 'Skipped'
+				Branch = $branch
+				Reason = "The Git update is restricted to branch 'main'."
+			}
+		}
+
+		throw "The Git update is restricted to branch 'main'. The current branch is '$branch'."
+	}
+
+	$status = @(& $gitCommand.Source -C $modulePath status --porcelain 2>&1)
+	if ($LASTEXITCODE -ne 0) {
+		throw 'Unable to inspect the Git working tree.'
+	}
+	if ($status.Count -gt 0) {
+		throw 'The Git working tree contains local changes. Commit or stash them before updating.'
+	}
+
+	$fetchOutput = & $gitCommand.Source -C $modulePath fetch origin main 2>&1
+	if ($LASTEXITCODE -ne 0) {
+		throw "Git could not fetch origin/main: $($fetchOutput -join ' ')"
+	}
+
+	$localCommit = (& $gitCommand.Source -C $modulePath rev-parse HEAD 2>&1 | Out-String).Trim()
+	$remoteCommit = (& $gitCommand.Source -C $modulePath rev-parse origin/main 2>&1 | Out-String).Trim()
+	if ($LASTEXITCODE -ne 0) {
+		throw 'Unable to compare the local branch with origin/main.'
+	}
+
+	if ($localCommit -eq $remoteCommit) {
+		return [pscustomobject]@{
+			Status = 'UpToDate'
+			Branch = $branch
+			LocalCommit = $localCommit
+			RemoteCommit = $remoteCommit
+		}
+	}
+
+	$ancestorCheck = & $gitCommand.Source -C $modulePath merge-base --is-ancestor HEAD origin/main 2>&1
+	if ($LASTEXITCODE -ne 0) {
+		throw 'The local main branch cannot be fast-forwarded to origin/main. Resolve the branch history manually.'
+	}
+
+	if ($PSCmdlet.ShouldProcess($modulePath, 'Update from origin/main with git pull --ff-only')) {
+		$pullOutput = & $gitCommand.Source -C $modulePath pull --ff-only origin main 2>&1
+		if ($LASTEXITCODE -ne 0) {
+			throw "Git could not update the module: $($pullOutput -join ' ')"
+		}
+
+		$newCommit = (& $gitCommand.Source -C $modulePath rev-parse HEAD 2>&1 | Out-String).Trim()
+		return [pscustomobject]@{
+			Status = 'Updated'
+			Branch = $branch
+			LocalCommit = $newCommit
+			RemoteCommit = $remoteCommit
+			ReloadRequired = $true
+		}
+	}
+
+	return [pscustomobject]@{
+		Status = 'UpdateAvailable'
+		Branch = $branch
+		LocalCommit = $localCommit
+		RemoteCommit = $remoteCommit
+	}
+}
+
+Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot, Update-StratoHiDriveUtilsGit

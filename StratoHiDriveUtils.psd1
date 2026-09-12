@@ -12,6 +12,7 @@
         'Start-HiDrive'
         'Stop-HiDrive'
         'Get-HiDriveSyncRoot'
+        'Update-StratoHiDriveUtilsGit'
     )
 
     CmdletsToExport = @()

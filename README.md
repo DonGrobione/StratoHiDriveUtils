@@ -22,6 +22,7 @@ It exports three functions:
 - `Start-HiDrive`
 - `Stop-HiDrive`
 - `Get-HiDriveSyncRoot`
+- `Update-StratoHiDriveUtilsGit`
 
 ## Requirements
 
@@ -130,6 +131,32 @@ C:\Users\<User>\HiDrive
 ```
 
 If no matching log entry is found, the function returns `$null`.
+
+### 4) Update from Git
+
+`Update-StratoHiDriveUtilsGit` checks for updates in `origin/main` and updates
+the module with `git pull --ff-only`. The module must have been installed by
+Git, the current branch must be `main`, and the working tree must be clean.
+Local changes are never overwritten. ZIP installations are not supported by
+this command.
+
+```powershell
+Import-Module StratoHiDriveUtils -Force
+Update-StratoHiDriveUtilsGit
+```
+
+To check the behavior without changing anything, use `-WhatIf`:
+
+```powershell
+Update-StratoHiDriveUtilsGit -WhatIf
+```
+
+After a successful update, reload the module:
+
+```powershell
+Remove-Module StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
+Import-Module StratoHiDriveUtils -Force
+```
 
 Optional guarded usage:
 
