@@ -18,7 +18,8 @@ Loads the module and stops all running HiDrive processes.
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
-Returns the sync root path directly, for example: C:\Users\<User>\HiDrive. If no entry is available in logs, the function returns $null.
+Returns the sync root path directly, for example: C:\Users\<User>\HiDrive.
+If no entry is available in logs, the function returns $null.
 
 .EXAMPLE
 Import-Module .\StratoHiDriveUtils.psd1 -Force
@@ -33,8 +34,7 @@ Loads the module and reads the current HiDrive sync root from logs.
 
 Set-StrictMode -Version Latest
 
-# Starts the STRATO HiDrive desktop application from a known installation path.
-# Throws an error when the executable cannot be found.
+# Starts the STRATO HiDrive desktop application from a known installation path and throws an error if not found.
 function Start-HiDrive {
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]

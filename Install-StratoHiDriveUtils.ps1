@@ -3,7 +3,9 @@
 Installs or updates StratoHiDriveUtils from the latest GitHub ZIP release.
 
 .DESCRIPTION
-Checks the latest GitHub release, detects existing module installations in the current Windows PowerShell 5.1 PSModulePath, and installs the release in the current user's Windows PowerShell module directory. An existing ZIP installation with the current version is left unchanged. Older installations and Git working trees are replaced.
+Checks the latest GitHub release, detects existing module installations in the current Windows PowerShell 5.1 PSModulePath, and installs the release in the current user's Windows PowerShell module directory.
+An existing ZIP installation with the current version is left unchanged.
+Older installations and Git working trees are replaced.
 
 .PARAMETER Force
 Suppresses the confirmation prompt for replacing an existing installation.

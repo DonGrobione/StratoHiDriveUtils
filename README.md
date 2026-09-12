@@ -34,13 +34,16 @@ It exports four functions:
 
 ### Option 1: One-Command Installer (recommended)
 
-Copy the following single line into Windows PowerShell 5.1. It downloads and runs the installer directly:
+Copy the following single line into Windows PowerShell 5.1.
+It downloads and runs the installer directly:
 
 ```powershell
 irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/5948981/Install-StratoHiDriveUtils.ps1 | iex
 ```
 
-The installer downloads the latest GitHub ZIP release and checks the manifest version before installation. If the current ZIP release is already installed, it reports this and makes no changes. Older installations and Git installations are removed and replaced at the Windows PowerShell 5.1 user module path.
+The installer downloads the latest GitHub ZIP release and checks the manifest version before installation.
+If the current ZIP release is already installed, it reports this and makes no changes.
+Older installations and Git installations are removed and replaced at the Windows PowerShell 5.1 user module path.
 
 ### Option 2: ZIP Download (manual installation)
 
@@ -52,7 +55,8 @@ After downloading, extract the ZIP into the appropriate module directory:
 |--------------------|------------------|
 | Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\StratoHiDriveUtils` |
 
-> **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module. Keep only one installation in the active PowerShell version's `PSModulePath`.
+> **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module.
+> Keep only one installation in the active PowerShell version's `PSModulePath`.
 
 Then load the module:
 
@@ -72,7 +76,8 @@ Import-Module StratoHiDriveUtils -Force
 Start-HiDrive
 ```
 
-`Start-HiDrive` checks common install paths and starts `HiDrive.App.exe`. If no executable is found, the function throws an error.
+`Start-HiDrive` checks common install paths and starts `HiDrive.App.exe`.
+If no executable is found, the function throws an error.
 
 ### 2) Stop HiDrive
 
@@ -81,7 +86,10 @@ Import-Module StratoHiDriveUtils -Force
 Stop-HiDrive
 ```
 
-`Stop-HiDrive` stops all processes whose name matches `*HiDrive*`. The function first sends a graceful close request and then force-stops remaining matching processes. If no process is running, it exits without error. In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
+`Stop-HiDrive` stops all processes whose name matches `*HiDrive*`.
+The function first sends a graceful close request and then force-stops remaining matching processes.
+If no process is running, it exits without error.
+In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
 
 ### 3) Read Sync Root Directory
 
@@ -100,7 +108,10 @@ If no matching log entry is found, the function returns `$null`.
 
 ### 4) Update from the ZIP Release
 
-`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the currently loaded module installation in place. It does not create a second module directory. The active module path must be present in the current PowerShell version's `PSModulePath`, and duplicate installations are rejected. Existing Git installations must be replaced with the ZIP release first; the update command does not overwrite a Git working tree.
+`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the currently loaded module installation in place.
+It does not create a second module directory.
+The active module path must be present in the current PowerShell version's `PSModulePath`, and duplicate installations are rejected.
+Existing Git installations must be replaced with the ZIP release first; the update command does not overwrite a Git working tree.
 
 ```powershell
 Import-Module StratoHiDriveUtils -Force
@@ -134,7 +145,9 @@ if ($null -ne $syncRoot) {
 
 ## Log Search Behavior in `Get-HiDriveSyncRoot`
 
-The sync root is actually stored by HiDrive in the SQLite database `%LOCALAPPDATA%\HiDrive\Data\user.db`. In practice, reading that value requires additional SQLite software or editor extensions. To keep this module dependency-free, `Get-HiDriveSyncRoot` reads the sync root from HiDrive log entries instead.
+The sync root is actually stored by HiDrive in the SQLite database `%LOCALAPPDATA%\HiDrive\Data\user.db`.
+In practice, reading that value requires additional SQLite software or editor extensions.
+To keep this module dependency-free, `Get-HiDriveSyncRoot` reads the sync root from HiDrive log entries instead.
 
 The function searches in this order:
 
@@ -170,15 +183,20 @@ It extracts entries matching:
 2. Commit the changes and merge them into `main`.
 3. Push `main` to GitHub.
 
-The GitHub Actions workflow runs automatically when `main` is updated. It reads the manifest version, creates `StratoHiDriveUtils-<version>.zip`, creates the GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached. The tag must not already exist. For version `1.1.4`, the workflow creates tag `v1.1.4` and release file `StratoHiDriveUtils-1.1.4.zip`.
+The GitHub Actions workflow runs automatically when `main` is updated.
+It reads the manifest version, creates `StratoHiDriveUtils-<version>.zip`, creates the GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached.
+The tag must not already exist.
+For version `1.1.4`, the workflow creates tag `v1.1.4` and release file `StratoHiDriveUtils-1.1.4.zip`.
 
 ## License
 
-This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0). See `License.md` for the full license text.
+This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0).
+See `License.md` for the full license text.
 
 ## Disclaimer
 
-I am in no way affiliated with STRATO or HiDrive. This project is an independent, unofficial utility module and is not endorsed by, sponsored by, or connected to STRATO/HiDrive.
+I am in no way affiliated with STRATO or HiDrive.
+This project is an independent, unofficial utility module and is not endorsed by, sponsored by, or connected to STRATO/HiDrive.
 
 ## AI Usage
 
