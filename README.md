@@ -17,7 +17,7 @@ StratoHiDriveUtils/
 ## Module Overview
 
 The module is defined by `StratoHiDriveUtils.psd1` and loads `StratoHiDriveUtils.psm1`.
-It exports three functions:
+It exports four functions:
 
 - `Start-HiDrive`
 - `Stop-HiDrive`
@@ -26,7 +26,6 @@ It exports three functions:
 
 ## Requirements
 
-- Windows
 - Windows PowerShell 5.1
 - Installed STRATO [HiDrive desktop client](https://static.hidrive.com/windows/0000)
 - Read access to `%LOCALAPPDATA%\HiDrive\Logs` and `%LOCALAPPDATA%\HiDrive\Data`
@@ -35,17 +34,13 @@ It exports three functions:
 
 ### Option 1: One-Command Installer (recommended)
 
-Copy the following single line into Windows PowerShell 5.1. It downloads and
-runs the installer directly:
+Copy the following single line into Windows PowerShell 5.1. It downloads and runs the installer directly:
 
 ```powershell
 irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/5948981/Install-StratoHiDriveUtils.ps1 | iex
 ```
 
-The installer downloads the latest GitHub ZIP release and checks the manifest
-version before installation. If the current ZIP release is already installed,
-it reports this and makes no changes. Older installations and Git installations
-are removed and replaced at the Windows PowerShell 5.1 user module path.
+The installer downloads the latest GitHub ZIP release and checks the manifest version before installation. If the current ZIP release is already installed, it reports this and makes no changes. Older installations and Git installations are removed and replaced at the Windows PowerShell 5.1 user module path.
 
 ### Option 2: ZIP Download (manual installation)
 
@@ -77,8 +72,7 @@ Import-Module StratoHiDriveUtils -Force
 Start-HiDrive
 ```
 
-`Start-HiDrive` checks common install paths and starts `HiDrive.App.exe`.
-If no executable is found, the function throws an error.
+`Start-HiDrive` checks common install paths and starts `HiDrive.App.exe`. If no executable is found, the function throws an error.
 
 ### 2) Stop HiDrive
 
@@ -87,10 +81,7 @@ Import-Module StratoHiDriveUtils -Force
 Stop-HiDrive
 ```
 
-`Stop-HiDrive` stops all processes whose name matches `*HiDrive*`.
-The function first sends a graceful close request and then force-stops remaining matching processes.
-If no process is running, it exits without error.
-In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
+`Stop-HiDrive` stops all processes whose name matches `*HiDrive*`. The function first sends a graceful close request and then force-stops remaining matching processes. If no process is running, it exits without error. In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
 
 ### 3) Read Sync Root Directory
 
@@ -109,12 +100,7 @@ If no matching log entry is found, the function returns `$null`.
 
 ### 4) Update from the ZIP Release
 
-`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the
-currently loaded module installation in place. It does not create a second
-module directory. The active module path must be present in the current
-PowerShell version's `PSModulePath`, and duplicate installations are rejected.
-Existing Git installations must be replaced with the ZIP release first; the
-update command does not overwrite a Git working tree.
+`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the currently loaded module installation in place. It does not create a second module directory. The active module path must be present in the current PowerShell version's `PSModulePath`, and duplicate installations are rejected. Existing Git installations must be replaced with the ZIP release first; the update command does not overwrite a Git working tree.
 
 ```powershell
 Import-Module StratoHiDriveUtils -Force
@@ -148,8 +134,7 @@ if ($null -ne $syncRoot) {
 
 ## Log Search Behavior in `Get-HiDriveSyncRoot`
 
-The sync root is actually stored by HiDrive in the SQLite database `%LOCALAPPDATA%\HiDrive\Data\user.db`.
-In practice, reading that value requires additional SQLite software or editor extensions. To keep this module dependency-free, `Get-HiDriveSyncRoot` reads the sync root from HiDrive log entries instead.
+The sync root is actually stored by HiDrive in the SQLite database `%LOCALAPPDATA%\HiDrive\Data\user.db`. In practice, reading that value requires additional SQLite software or editor extensions. To keep this module dependency-free, `Get-HiDriveSyncRoot` reads the sync root from HiDrive log entries instead.
 
 The function searches in this order:
 
@@ -176,20 +161,16 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `1.1.3`.
+- Current manifest version: `1.1.4`.
 - The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ### Create a New Release
 
-1. Update `ModuleVersion` in `StratoHiDriveUtils.psd1`, for example from `1.1.3` to `1.1.4`.
+1. Update `ModuleVersion` in `StratoHiDriveUtils.psd1`, for example from `1.1.4` to `1.1.5`.
 2. Commit the changes and merge them into `main`.
 3. Push `main` to GitHub.
 
-The GitHub Actions workflow runs automatically when `main` is updated. It reads
-the manifest version, creates `StratoHiDriveUtils-<version>.zip`, creates the
-GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached.
-The tag must not already exist. For version `1.1.4`, the workflow creates tag
-`v1.1.4` and release file `StratoHiDriveUtils-1.1.4.zip`.
+The GitHub Actions workflow runs automatically when `main` is updated. It reads the manifest version, creates `StratoHiDriveUtils-<version>.zip`, creates the GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached. The tag must not already exist. For version `1.1.4`, the workflow creates tag `v1.1.4` and release file `StratoHiDriveUtils-1.1.4.zip`.
 
 ## License
 
