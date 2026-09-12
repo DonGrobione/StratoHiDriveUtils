@@ -27,7 +27,7 @@ It exports three functions:
 ## Requirements
 
 - Windows
-- PowerShell 5.1+ (PowerShell 7 also works)
+- Windows PowerShell 5.1
 - Installed STRATO [HiDrive desktop client](https://static.hidrive.com/windows/0000)
 - Read access to `%LOCALAPPDATA%\HiDrive\Logs` and `%LOCALAPPDATA%\HiDrive\Data`
 
@@ -42,7 +42,6 @@ After downloading, extract the ZIP into the appropriate module directory:
 | PowerShell Version | Target Directory |
 |--------------------|------------------|
 | Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\StratoHiDriveUtils` |
-| PowerShell 7+ | `%USERPROFILE%\Documents\PowerShell\Modules\StratoHiDriveUtils` |
 
 > **Note:** The target directory must be named `StratoHiDriveUtils` for PowerShell to auto-discover the module. Keep only one installation in the active PowerShell version's `PSModulePath`.
 

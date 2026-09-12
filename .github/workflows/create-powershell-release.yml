@@ -15,12 +15,12 @@ jobs:
       
       - name: Read version and commit message
         id: meta
-        shell: pwsh
+        shell: bash
         run: |
-          $version = (Import-PowerShellDataFile 'StratoHiDriveUtils.psd1').ModuleVersion
-          $commitMsg = git log -1 --pretty=%s
-          echo "version=$version" >> $env:GITHUB_OUTPUT
-          echo "commit_msg=$commitMsg" >> $env:GITHUB_OUTPUT
+          version=$(sed -n "s/^[[:space:]]*ModuleVersion = '\([^']*\)'.*/\1/p" StratoHiDriveUtils.psd1 | head -n 1)
+          commit_msg=$(git log -1 --pretty=%s)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "commit_msg=$commit_msg" >> "$GITHUB_OUTPUT"
 
       - name: Create ZIP
         id: create_zip
