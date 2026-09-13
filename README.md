@@ -200,4 +200,4 @@ This project is an independent, unofficial utility module and is not endorsed by
 
 ## AI Usage
 
-This module was created with support from AI/KI tooling.
+This project was created with support from AI/KI tooling.
