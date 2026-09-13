@@ -27,7 +27,7 @@ jobs:
         shell: bash
         run: |
           ZIP_NAME="StratoHiDriveUtils-${{ steps.meta.outputs.version }}.zip"
-          git ls-files ':!/.github/**' ':!/.gitignore' > files_to_zip.txt
+          git ls-files ':!/.github/**' ':!/.copilot/**' ':!/.gitignore' > files_to_zip.txt
           if [ ! -s files_to_zip.txt ]; then
             echo "No files to archive."
             exit 1
