@@ -250,6 +250,7 @@ function Update-StratoHiDriveUtils {
 
 		Copy-Item -LiteralPath $modulePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
 		try {
+			Get-ChildItem -LiteralPath $modulePath -Force | Remove-Item -Recurse -Force -ErrorAction Stop
 			$packageFiles = Get-ChildItem -LiteralPath $packageRoot -File -Recurse -ErrorAction Stop
 			foreach ($packageFile in $packageFiles) {
 				$relativePath = $packageFile.FullName.Substring($packageRoot.Length).TrimStart('\', '/')

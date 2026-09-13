@@ -121,7 +121,12 @@ try {
 
 	Get-Module -Name $moduleName | Remove-Module -Force -ErrorAction SilentlyContinue
 	foreach ($candidate in $moduleCandidates) {
-		Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
+		if (Test-Path -LiteralPath $candidate.Path) {
+			Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
+		}
+	}
+	if (Test-Path -LiteralPath $targetPath) {
+		Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction Stop
 	}
 	New-Item -ItemType Directory -Path $targetPath -Force -ErrorAction Stop | Out-Null
 
