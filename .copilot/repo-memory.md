@@ -30,5 +30,5 @@
 - Keep each sentence on one line in README.md, comments, and comment-based help blocks.
 - Use exactly one comment-based help block at the beginning of each PowerShell script or module file.
 - Use regular single-line comments for all other comments, with a concise human-readable comment immediately before every function.
-- The project rule and memory files are `.copilot/project-rules.md` and `.copilot/repo-memory.md`; no other project rule or memory paths are allowed.
+- The project rule and memory files are `.copilot\copilot-instructions.md` and `.copilot\repo-memory.md`; no other project rule or memory paths are allowed.
 - Target Windows PowerShell 5.1 and follow Microsoft and PowerShell module-authoring best practices.
