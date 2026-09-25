@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-StratoHiDriveUtils is a small, dependency-free Windows PowerShell 5.1 module for controlling the STRATO HiDrive desktop client: `Start-HiDrive`, `Stop-HiDrive`, `Get-HiDriveSyncRoot`, and the self-updater `Update-StratoHiDriveUtils`. All code lives in `StratoHiDriveUtils.psm1` (functions), `StratoHiDriveUtils.psd1` (manifest), and the standalone root-level installer `Install-StratoHiDriveUtils.ps1`.
+DonGrobione.StratoHiDriveUtils is a small, dependency-free Windows PowerShell 5.1 module for controlling the STRATO HiDrive desktop client: `Start-HiDrive`, `Stop-HiDrive`, `Get-HiDriveSyncRoot`, and the self-updater `Update-StratoHiDriveUtils`. All code lives in `DonGrobione.StratoHiDriveUtils.psm1` (functions), `DonGrobione.StratoHiDriveUtils.psd1` (manifest), and the standalone root-level installer `Install-StratoHiDriveUtils.ps1`.
+
+The module was renamed from `StratoHiDriveUtils` in 2.0.0 to follow the `Company.Product` naming convention. The GitHub repository, the function names, and the installer file name deliberately keep the old name. The installer detects and replaces installations under the legacy name; 1.x `Update-StratoHiDriveUtils` cannot reach 2.x releases, so users migrate by rerunning the installer. The module folder name must equal the module name (`DonGrobione.StratoHiDriveUtils`) for auto-discovery.
 
 This file is the maintained rule set for the project. `.github/copilot-instructions.md` and `.github/repo-memory.md` are legacy GitHub Copilot files kept at their standard locations in case the project returns to Copilot; Claude Code does not need to read or update them. `.Test/` and `.vscode/` are gitignored local scratch folders and must not be documented in README.md.
 
@@ -13,20 +15,20 @@ This file is the maintained rule set for the project. `.github/copilot-instructi
 There is no test suite or build step. Before finishing work, parse changed files with Windows PowerShell 5.1 (not pwsh) and run PSScriptAnalyzer if installed, fixing any diagnostics the change introduced:
 
 ```powershell
-powershell.exe -NoProfile -Command "`$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\StratoHiDriveUtils.psm1), [ref]`$null, [ref]`$e); `$e"
+powershell.exe -NoProfile -Command "`$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\DonGrobione.StratoHiDriveUtils.psm1), [ref]`$null, [ref]`$e); `$e"
 powershell.exe -NoProfile -Command "Invoke-ScriptAnalyzer -Path . -Recurse"
-powershell.exe -NoProfile -Command "Import-Module .\StratoHiDriveUtils.psd1 -Force; Get-Command -Module StratoHiDriveUtils"
+powershell.exe -NoProfile -Command "Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force; Get-Command -Module DonGrobione.StratoHiDriveUtils"
 ```
 
 ## Release Pipeline
 
-`ModuleVersion` in `StratoHiDriveUtils.psd1` is the single source of truth for the version; never duplicate it in comment-based help. The installer ships inside the release ZIP and is versioned by the manifest, so it carries no version of its own. README.md states the current version under "Versioning"; keep it in sync with the manifest.
+`ModuleVersion` in `DonGrobione.StratoHiDriveUtils.psd1` is the single source of truth for the version; never duplicate it in comment-based help. The installer ships inside the release ZIP and is versioned by the manifest, so it carries no version of its own. README.md states the current version under "Versioning"; keep it in sync with the manifest.
 
-Every push to `main` triggers `.github/workflows/create-powershell-release.yml`, which reads `ModuleVersion` via sed (the line format `ModuleVersion = 'x.y.z'` must stay intact), zips all tracked files except `.github/`, `.gitignore`, and `CLAUDE.md` into `StratoHiDriveUtils-<version>.zip`, and publishes GitHub release `v<version>`. The tag must not already exist, so any push to `main` that should succeed needs a version bump. New tooling-only files at the repo root must be added to the `git ls-files` exclusions, otherwise they ship in the module.
+Every push to `main` triggers `.github/workflows/create-powershell-release.yml`, which reads `ModuleVersion` via sed (the line format `ModuleVersion = 'x.y.z'` must stay intact), zips all tracked files except `.github/`, `.gitignore`, and `CLAUDE.md` into `DonGrobione.StratoHiDriveUtils-<version>.zip`, and publishes GitHub release `v<version>`. The tag must not already exist, so any push to `main` that should succeed needs a version bump. New tooling-only files at the repo root must be added to the `git ls-files` exclusions, otherwise they ship in the module.
 
-Both the installer and `Update-StratoHiDriveUtils` consume that release: they query the GitHub `releases/latest` API, require exactly one asset matching `^StratoHiDriveUtils-x.y.z.zip$`, verify the extracted manifest version matches the asset name, and replace the module folder with a temp backup/rollback. They refuse Git working-tree installations (`.git` present); the updater also refuses duplicate installations across `PSModulePath`. Changing the asset naming, ZIP layout, or manifest format affects all three pieces.
+Both the installer and `Update-StratoHiDriveUtils` consume that release: they query the GitHub `releases/latest` API, require exactly one asset matching `^DonGrobione\.StratoHiDriveUtils-x.y.z.zip$` (the module name is regex-escaped), verify the extracted manifest version matches the asset name, and replace the module folder with a temp backup/rollback. They refuse Git working-tree installations (`.git` present); the updater also refuses duplicate installations across `PSModulePath`. Changing the asset naming, ZIP layout, or manifest format affects all three pieces.
 
-The installer is run via `irm ... | iex` (see README), so it must never call `exit`, which would close the user's session; it signals failure with `throw`.
+The installer is run via `irm ... | iex` from a URL pinned to a release tag in README.md (update that tag when the installer changes), so it must never call `exit`, which would close the user's session; it signals failure with `throw`.
 
 ## Key Behavior
 

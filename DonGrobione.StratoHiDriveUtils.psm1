@@ -6,23 +6,23 @@ PowerShell module to control STRATO HiDrive and read the configured sync root.
 Provides functions to start and stop the HiDrive desktop app and to determine the current sync root folder from HiDrive log files.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
 Start-HiDrive
 Loads the module from the current directory and starts HiDrive.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
 Stop-HiDrive
 Loads the module and stops all running HiDrive processes.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
 Returns the sync root path directly, for example: C:\Users\<User>\HiDrive.
 If no entry is available in logs, the function returns $null.
 
 .EXAMPLE
-Import-Module .\StratoHiDriveUtils.psd1 -Force
+Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
 $syncRoot = Get-HiDriveSyncRoot
 if ($null -ne $syncRoot) {
 	"Sync root: $syncRoot"
@@ -195,6 +195,7 @@ function Update-StratoHiDriveUtils {
 
 	$localManifest = Import-PowerShellDataFile -LiteralPath $manifestPath
 	$localVersion = [version]$localManifest.ModuleVersion
+	$escapedModuleName = [regex]::Escape($moduleName)
 	$temporaryRoot = $null
 	$backupPath = $null
 
@@ -205,12 +206,12 @@ function Update-StratoHiDriveUtils {
 			'X-GitHub-Api-Version' = '2022-11-28'
 		} -Method Get -ErrorAction Stop
 
-		$releaseAsset = @($release.assets | Where-Object { $_.name -match '^StratoHiDriveUtils-[0-9]+\.[0-9]+\.[0-9]+\.zip$' })
+		$releaseAsset = @($release.assets | Where-Object { $_.name -match "^$escapedModuleName-[0-9]+\.[0-9]+\.[0-9]+\.zip$" })
 		if ($releaseAsset.Count -ne 1) {
 			throw 'The latest GitHub release does not contain exactly one valid module ZIP asset.'
 		}
 
-		$remoteVersion = [version]($releaseAsset[0].name -replace '^StratoHiDriveUtils-|\.zip$')
+		$remoteVersion = [version]($releaseAsset[0].name -replace "^$escapedModuleName-|\.zip$")
 		if ($remoteVersion -le $localVersion) {
 			return [pscustomobject]@{
 				Status = 'UpToDate'
@@ -220,7 +221,7 @@ function Update-StratoHiDriveUtils {
 			}
 		}
 
-		if (-not $PSCmdlet.ShouldProcess($modulePath, "Install StratoHiDriveUtils $remoteVersion from the GitHub ZIP release")) {
+		if (-not $PSCmdlet.ShouldProcess($modulePath, "Install $moduleName $remoteVersion from the GitHub ZIP release")) {
 			return [pscustomobject]@{
 				Status = 'UpdateAvailable'
 				LocalVersion = $localVersion.ToString()

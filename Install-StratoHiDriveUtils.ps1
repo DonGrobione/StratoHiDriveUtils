@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-Installs or updates StratoHiDriveUtils from the latest GitHub ZIP release.
+Installs or updates DonGrobione.StratoHiDriveUtils from the latest GitHub ZIP release.
 
 .DESCRIPTION
 Checks the latest GitHub release, detects existing module installations in the current Windows PowerShell 5.1 PSModulePath, and installs the release in the current user's Windows PowerShell module directory.
 An existing ZIP installation with the current version is left unchanged.
-Older installations and Git working trees are replaced.
+Older installations, Git working trees, and installations under the legacy module name StratoHiDriveUtils are replaced.
 
 .PARAMETER Force
 Suppresses the confirmation prompt for replacing an existing installation.
@@ -13,7 +13,7 @@ Suppresses the confirmation prompt for replacing an existing installation.
 .EXAMPLE
 .\Install-StratoHiDriveUtils.ps1 -Force
 
-Installs or updates StratoHiDriveUtils without prompting.
+Installs or updates DonGrobione.StratoHiDriveUtils without prompting.
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -23,7 +23,9 @@ param(
 
 Set-StrictMode -Version Latest
 
-$moduleName = 'StratoHiDriveUtils'
+$moduleName = 'DonGrobione.StratoHiDriveUtils'
+$legacyModuleName = 'StratoHiDriveUtils'
+$escapedModuleName = [regex]::Escape($moduleName)
 $repositoryName = 'DonGrobione/StratoHiDriveUtils'
 $temporaryRoot = $null
 $backupRoot = $null
@@ -35,30 +37,33 @@ try {
 		'X-GitHub-Api-Version' = '2022-11-28'
 	} -Method Get -ErrorAction Stop
 
-	$releaseAssets = @($release.assets | Where-Object { $_.name -match "^$moduleName-[0-9]+\.[0-9]+\.[0-9]+\.zip$" })
+	$releaseAssets = @($release.assets | Where-Object { $_.name -match "^$escapedModuleName-[0-9]+\.[0-9]+\.[0-9]+\.zip$" })
 	if ($releaseAssets.Count -ne 1) {
 		throw 'The latest GitHub release does not contain exactly one valid module ZIP asset.'
 	}
 
-	$releaseVersion = [version]($releaseAssets[0].name -replace "^$moduleName-|\.zip$")
+	$releaseVersion = [version]($releaseAssets[0].name -replace "^$escapedModuleName-|\.zip$")
 	$pathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator | Where-Object { $_ })
 	$moduleCandidates = foreach ($pathEntry in $pathEntries) {
-		$candidatePath = Join-Path $pathEntry $moduleName
-		$candidateManifest = Join-Path $candidatePath "$moduleName.psd1"
-		if (Test-Path -LiteralPath $candidateManifest -PathType Leaf) {
-			$manifestData = Import-PowerShellDataFile -LiteralPath $candidateManifest
-			[pscustomobject]@{
-				Path = [System.IO.Path]::GetFullPath($candidatePath)
-				Version = [version]$manifestData.ModuleVersion
-				IsGit = Test-Path -LiteralPath (Join-Path $candidatePath '.git')
+		foreach ($candidateName in @($moduleName, $legacyModuleName)) {
+			$candidatePath = Join-Path $pathEntry $candidateName
+			$candidateManifest = Join-Path $candidatePath "$candidateName.psd1"
+			if (Test-Path -LiteralPath $candidateManifest -PathType Leaf) {
+				$manifestData = Import-PowerShellDataFile -LiteralPath $candidateManifest
+				[pscustomobject]@{
+					Path = [System.IO.Path]::GetFullPath($candidatePath)
+					Version = [version]$manifestData.ModuleVersion
+					IsGit = Test-Path -LiteralPath (Join-Path $candidatePath '.git')
+					IsLegacy = $candidateName -eq $legacyModuleName
+				}
 			}
 		}
 	}
 	$moduleCandidates = @($moduleCandidates | Sort-Object Path -Unique)
 
-	$validCurrentInstallations = @($moduleCandidates | Where-Object { $_.Version -eq $releaseVersion -and -not $_.IsGit })
+	$validCurrentInstallations = @($moduleCandidates | Where-Object { $_.Version -eq $releaseVersion -and -not $_.IsGit -and -not $_.IsLegacy })
 	if ($moduleCandidates.Count -eq 1 -and $validCurrentInstallations.Count -eq 1) {
-		Write-Output "StratoHiDriveUtils $releaseVersion is already installed at '$($validCurrentInstallations[0].Path)'. No changes were made."
+		Write-Output "$moduleName $releaseVersion is already installed at '$($validCurrentInstallations[0].Path)'. No changes were made."
 		return
 	}
 
@@ -74,7 +79,7 @@ try {
 		throw "The target module directory '$targetParent' is not part of the current PSModulePath."
 	}
 
-	$action = "Replace existing StratoHiDriveUtils installations with release $releaseVersion at '$targetPath'"
+	$action = "Replace existing $moduleName and $legacyModuleName installations with release $releaseVersion at '$targetPath'"
 	$shouldInstall = $false
 	$forceValue = Get-Variable -Name Force -ValueOnly -ErrorAction SilentlyContinue
 	$whatIfValue = Get-Variable -Name WhatIfPreference -ValueOnly -ErrorAction SilentlyContinue
@@ -89,7 +94,7 @@ try {
 		$shouldInstall = $true
 	}
 	if (-not $shouldInstall) {
-		Write-Output "StratoHiDriveUtils $releaseVersion is available. No changes were made."
+		Write-Output "$moduleName $releaseVersion is available. No changes were made."
 		return
 	}
 
@@ -119,7 +124,7 @@ try {
 		$backups += [pscustomobject]@{ OriginalPath = $candidate.Path; BackupPath = $backupPath }
 	}
 
-	Get-Module -Name $moduleName | Remove-Module -Force -ErrorAction SilentlyContinue
+	Get-Module -Name $moduleName, $legacyModuleName | Remove-Module -Force -ErrorAction SilentlyContinue
 	foreach ($candidate in $moduleCandidates) {
 		if (Test-Path -LiteralPath $candidate.Path) {
 			Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
@@ -149,7 +154,7 @@ try {
 		throw
 	}
 
-	Write-Output "StratoHiDriveUtils $releaseVersion was installed at '$targetPath'. Start a new Windows PowerShell session or import the module again."
+	Write-Output "$moduleName $releaseVersion was installed at '$targetPath'. Start a new Windows PowerShell session or import the module again."
 }
 catch {
 	Write-Error $_.Exception.Message

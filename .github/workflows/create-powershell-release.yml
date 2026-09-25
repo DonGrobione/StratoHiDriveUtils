@@ -17,7 +17,7 @@ jobs:
         id: meta
         shell: bash
         run: |
-          version=$(sed -n "s/^[[:space:]]*ModuleVersion = '\([^']*\)'.*/\1/p" StratoHiDriveUtils.psd1 | head -n 1)
+          version=$(sed -n "s/^[[:space:]]*ModuleVersion = '\([^']*\)'.*/\1/p" DonGrobione.StratoHiDriveUtils.psd1 | head -n 1)
           commit_msg=$(git log -1 --pretty=%s)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "commit_msg=$commit_msg" >> "$GITHUB_OUTPUT"
@@ -26,7 +26,7 @@ jobs:
         id: create_zip
         shell: bash
         run: |
-          ZIP_NAME="StratoHiDriveUtils-${{ steps.meta.outputs.version }}.zip"
+          ZIP_NAME="DonGrobione.StratoHiDriveUtils-${{ steps.meta.outputs.version }}.zip"
           git ls-files ':!/.github/**' ':!/.gitignore' ':!/CLAUDE.md' > files_to_zip.txt
           if [ ! -s files_to_zip.txt ]; then
             echo "No files to archive."
