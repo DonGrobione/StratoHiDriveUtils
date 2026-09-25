@@ -8,7 +8,7 @@ DonGrobione.StratoHiDriveUtils is a small, dependency-free Windows PowerShell 5.
 
 The module was renamed from `StratoHiDriveUtils` in 2.0.0 to follow the `Company.Product` naming convention. The GitHub repository, the function names, and the installer file name deliberately keep the old name. The installer detects and replaces installations under the legacy name; 1.x `Update-StratoHiDriveUtils` cannot reach 2.x releases, so users migrate by rerunning the installer. The module folder name must equal the module name (`DonGrobione.StratoHiDriveUtils`) for auto-discovery.
 
-This file is the maintained rule set for the project. `.github/copilot-instructions.md` and `.github/repo-memory.md` are legacy GitHub Copilot files kept at their standard locations in case the project returns to Copilot; Claude Code does not need to read or update them. `.Test/` and `.vscode/` are gitignored local scratch folders and must not be documented in README.md.
+This file is the only rule set for the project; the former GitHub Copilot rules and repository memory were merged into it. The goal is compliance with Microsoft and PowerShell module-authoring best practices. `.github/` holds only standard GitHub files such as workflows. `.Test/` and `.vscode/` are gitignored local scratch folders and must not be documented in README.md.
 
 ## Validation
 
@@ -32,17 +32,28 @@ The installer is run via `irm ... | iex` from a URL pinned to a release tag in R
 
 ## Key Behavior
 
-`Get-HiDriveSyncRoot` deliberately avoids reading HiDrive's SQLite `%LOCALAPPDATA%\HiDrive\Data\user.db` (table `User`, field `SyncFolderPath`) to stay dependency-free. It parses `FileSystemSnapshot: Get file system snapshot started. Root <path> |` entries from `%LOCALAPPDATA%\HiDrive\Logs\log.txt` (HiDrive 6.5.x), falling back to legacy `%LOCALAPPDATA%\HiDrive\Data\<digits>.<digits>\syncLog.txt`, and returns `$null` (no exception) when nothing matches.
+`Get-HiDriveSyncRoot` deliberately avoids reading HiDrive's SQLite `%LOCALAPPDATA%\HiDrive\Data\user.db` (table `User`, field `SyncFolderPath`) to stay dependency-free. It parses `FileSystemSnapshot: Get file system snapshot started. Root <path> |` entries from HiDrive logs and returns `$null` (no exception) when nothing matches:
+
+- HiDrive 6.5.x writes rotating logs `log.txt`, `log.0.txt`, and so on under `%LOCALAPPDATA%\HiDrive\Logs\`; the primary target is `log.txt`.
+- Older HiDrive versions wrote `syncLog.txt` into subfolders of `%LOCALAPPDATA%\HiDrive\Data\` matching `^\d+\.\d+$` (for example `52794237.1`); these are the fallback.
 
 ## Code Rules
 
 - Must parse and run in Windows PowerShell 5.1; no PowerShell 6+ syntax, operators, automatic variables, or cmdlets. Existing code uses tab indentation.
+- Standalone installer scripts live at the project root.
 - Each .ps1/.psm1 has exactly one comment-based help block, as the first content (only `#requires` may precede it). No help blocks inside functions; all other comments are single-line `#`.
 - Every function gets a concise `#` comment immediately before its definition describing its responsibility and observable behavior.
-- Never break a sentence across lines in README.md, comments, or help blocks; new lines only between sentences or list items. All code, comments, output, and docs in English.
-- Approved verbs, descriptive names without abbreviations, single-responsibility functions with early returns. No aliases, `Invoke-Expression`, wildcard exports, or global state.
-- Use `[CmdletBinding()]`, with `SupportsShouldProcess` for state-changing actions. `Set-StrictMode -Version Latest` is mandatory at script/module scope.
+- Never break a sentence across lines in README.md, comments, or help blocks; new lines only between sentences or list items. All code, comments, help, output, log messages, and docs in English.
+- Approved verbs (verify with `Get-Verb`) and descriptive PascalCase/camelCase names without abbreviations, except loop counters. Single-responsibility, action-oriented functions with early returns. No aliases, `Invoke-Expression`, wildcard exports, global state, or unnecessary side effects.
+- Use `[CmdletBinding()]`, with `SupportsShouldProcess` for state-changing or destructive actions. `Set-StrictMode -Version Latest` is mandatory at script/module scope.
 - When adding a public function, update both `FunctionsToExport` in the manifest and `Export-ModuleMember` in the .psm1. Keep `CmdletsToExport`, `VariablesToExport`, `AliasesToExport` explicitly `@()`.
-- The module must not log or write log files. Return data/status objects or throw; the importing script decides what to log.
 - Validate inputs and paths at boundaries: `Join-Path`, `Test-Path -PathType`, and `-ErrorAction Stop` inside try/catch. Temp files go under `$env:TEMP` and are removed afterward.
-- Keep README.md current (structure of user-facing files, prerequisites, usage) and keep its note that AI/KI tooling supported creation of the module. Commit messages describe what changed and why.
+- Keep README.md current (project structure, purpose of every user-facing file and directory, prerequisites, configuration, usage) and keep its note that AI/KI tooling supported creation of the module. After code changes, verify that examples, file structure, and guidelines still match the codebase. Commit messages describe what changed and why.
+- Standalone .ps1 scripts without a manifest carry a version number in their help block and keep it current when behavior changes; scripts shipped in the module's release ZIP (the installer) use the manifest version instead.
+
+## Logging, Errors, and Security
+
+- The module must not log or write log files. It returns data, status objects, or error records, or throws; the importing script decides what to log.
+- If an orchestrator or entry-point script is added, only a `Write-Log.psm1` module writes logs, and only the orchestrator calls it. Each log entry is prefixed with the emitting script name (for example `[MyScript.ps1]`), project paths are logged relative to the repo root and `$env:TEMP` paths absolutely, and errors already logged are not logged again.
+- Child scripts catch their own errors and rethrow so failures reach the orchestrator. Entry points exit with 0 on success and 1 on unhandled failure, except scripts run via `irm | iex`, which throw instead.
+- Treat all input as untrusted; apply defense in depth, least privilege, and fail-secure behavior. Secrets are never stored in code; read them at runtime from a .psd1 file under `Secrets/` and never log their values.
