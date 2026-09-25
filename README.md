@@ -156,14 +156,16 @@ The sync root is actually stored by HiDrive in the SQLite database `%LOCALAPPDAT
 In practice, reading that value requires additional SQLite software or editor extensions.
 To keep this module dependency-free, `Get-HiDriveSyncRoot` reads the sync root from HiDrive log entries instead.
 
-The function searches in this order:
+The function searches these log files, including their rotated copies such as `log.0.txt` or `syncLog.0.txt`:
 
-1. Current log path: `%LOCALAPPDATA%\HiDrive\Logs\log.txt`
-2. Legacy fallback: `%LOCALAPPDATA%\HiDrive\Data\<numeric folder>\syncLog.txt`
+- Application logs: `%LOCALAPPDATA%\HiDrive\Logs\log.txt` (HiDrive 6.5.x)
+- Sync logs: `%LOCALAPPDATA%\HiDrive\Data\<numeric folder>\syncLog.txt` (older versions and HiDrive 7.x)
 
+Files are searched from the most recently written to the oldest, and the last matching entry of the first file with a match is returned.
 It extracts entries matching:
 
 - `FileSystemSnapshot: Get file system snapshot started. Root <path> |`
+- `FSW: started for root <path> |`
 
 ## Troubleshooting
 
@@ -175,13 +177,13 @@ It extracts entries matching:
     - `%LOCALAPPDATA%\STRATO\HiDrive\HiDrive.App.exe`
 - `Get-HiDriveSyncRoot` returns `$null`:
   - HiDrive may not have completed an initial scan yet.
-  - Check whether log files exist under `%LOCALAPPDATA%\HiDrive\Logs`.
+  - Check whether log files exist under `%LOCALAPPDATA%\HiDrive\Logs` or `%LOCALAPPDATA%\HiDrive\Data\<numeric folder>`.
   - Start HiDrive once and allow it to run briefly before trying again.
 
 ## Versioning
 
 - Module version source of truth: `DonGrobione.StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `2.0.0`.
+- Current manifest version: `2.0.1`.
 - The module file `DonGrobione.StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ### Create a New Release

@@ -102,21 +102,36 @@ function Stop-HiDrive {
 	}
 }
 
-# Reads the latest HiDrive sync root path from the current or legacy log files.
+# Reads the latest HiDrive sync root path from the application and sync log files, including rotated ones, newest file first.
 # Returns null when no matching log entry is available.
 function Get-HiDriveSyncRoot {
 	[CmdletBinding()]
 	[OutputType([string])]
 	param()
 
-	$pattern = 'FileSystemSnapshot: Get file system snapshot started\. Root (?<Root>.+?)\s*\|'
+	$pattern = '(?:FileSystemSnapshot: Get file system snapshot started\. Root|FSW: started for root) (?<Root>.+?)\s*\|'
+	$logFiles = @()
 
 	$logRoot = Join-Path $env:LOCALAPPDATA 'HiDrive\Logs'
-	$currentLogPath = Join-Path $logRoot 'log.txt'
-	if (Test-Path -LiteralPath $currentLogPath) {
+	if (Test-Path -LiteralPath $logRoot -PathType Container) {
+		$logFiles += @(Get-ChildItem -LiteralPath $logRoot -File -Force -ErrorAction SilentlyContinue |
+			Where-Object { $_.Name -match '^log(\.\d+)?\.txt$' })
+	}
+
+	$dataRoot = Join-Path $env:LOCALAPPDATA 'HiDrive\Data'
+	if (Test-Path -LiteralPath $dataRoot -PathType Container) {
+		$syncLogDirectories = Get-ChildItem -LiteralPath $dataRoot -Directory -Recurse -Force -ErrorAction SilentlyContinue |
+			Where-Object { $_.Name -match '^\d+\.\d+$' }
+
+		foreach ($directory in $syncLogDirectories) {
+			$logFiles += @(Get-ChildItem -LiteralPath $directory.FullName -File -Force -ErrorAction SilentlyContinue |
+				Where-Object { $_.Name -match '^syncLog(\.\d+)?\.txt$' })
+		}
+	}
+
+	foreach ($logFile in ($logFiles | Sort-Object LastWriteTime -Descending)) {
 		try {
-			$match = Get-Content -LiteralPath $currentLogPath -ErrorAction Stop |
-				Select-String -Pattern $pattern |
+			$match = Select-String -LiteralPath $logFile.FullName -Pattern $pattern -ErrorAction Stop |
 				Select-Object -Last 1
 
 			if ($match) {
@@ -124,35 +139,7 @@ function Get-HiDriveSyncRoot {
 			}
 		}
 		catch {
-			Write-Verbose "Unable to read the current HiDrive log. Continuing with the legacy log search."
-		}
-	}
-
-	$dataRoot = Join-Path $env:LOCALAPPDATA 'HiDrive\Data'
-	if (Test-Path -LiteralPath $dataRoot) {
-		$candidateDirectories = Get-ChildItem -LiteralPath $dataRoot -Directory -Recurse -Force -ErrorAction SilentlyContinue |
-			Where-Object { $_.Name -match '^\d+\.\d+$' } |
-			Sort-Object LastWriteTime -Descending
-
-		foreach ($directory in $candidateDirectories) {
-			$syncLogPath = Join-Path $directory.FullName 'syncLog.txt'
-			if (-not (Test-Path -LiteralPath $syncLogPath)) {
-				continue
-			}
-
-			try {
-				$match = Get-Content -LiteralPath $syncLogPath -ErrorAction Stop |
-					Select-String -Pattern $pattern |
-					Select-Object -Last 1
-
-				if ($match) {
-					return $match.Matches[0].Groups['Root'].Value.Trim()
-				}
-			}
-			catch {
-				Write-Verbose "Unable to read the legacy HiDrive sync log at '$syncLogPath'. Continuing with the next log."
-				continue
-			}
+			Write-Verbose "Unable to read the HiDrive log at '$($logFile.FullName)'. Continuing with the next log."
 		}
 	}
 
