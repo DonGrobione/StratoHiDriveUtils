@@ -19,7 +19,7 @@
 - Keep functions single-responsibility, action-oriented, with early returns to reduce nesting.
 - Validate inputs and paths at boundaries. Use Join-Path for constructed paths, Test-Path with -PathType before dependent operations, and -ErrorAction Stop for operations handled by try/catch.
 - Avoid aliases, Invoke-Expression, wildcard exports, global state, and unnecessary side effects.
-- Enable Set-StrictMode -Version Latest only after verifying that the complete script and all imported modules support it in PowerShell 5.1.
+- Enable Set-StrictMode -Version Latest only after verifying that the complete script and all imported modules support it in PowerShell 5.1. Project-specific rules in section 9 take precedence over this general rule.
 
 ## 4. Logging And Error Handling
 - Write-Log.psm1 is the only module allowed to write log files or emit project log entries.
@@ -29,6 +29,7 @@
 - Child scripts must catch their own errors, rethrow with throw so failures bubble to the orchestrator, and let the orchestrator decide the final logging.
 - The orchestrator prints errors to terminal and writes log entries via Write-Log. It must not write duplicate log entries for errors already logged.
 - Scripts return exit code 0 on success and 1 on unhandled failure. Standalone entry points and orchestrators use exit codes; sub-scripts called by an orchestrator rely on the orchestrator's exit handling.
+- Scripts designed to run through irm | iex must not call exit, because exit would close the caller's PowerShell session. They signal failure with throw instead.
 - Project-internal paths are logged as relative paths from the repository root; paths under $env:TEMP are logged as absolute paths.
 - Temporary files must be created under $env:TEMP and removed after use.
 
@@ -44,10 +45,14 @@
 ## 7. Versioning
 - For modules (.psm1 with manifest .psd1): the .psd1 manifest is the single source of truth for versioning. Do not duplicate version metadata inside comment-based help blocks.
 - For standalone scripts (.ps1 without manifest): include a version number in the comment-based help block and keep it current when behavior changes.
+- Standalone scripts that ship inside a module's release package, such as Install-StratoHiDriveUtils.ps1, are versioned by the module manifest and do not carry their own version number.
 
 ## 8. Copilot Rules And Memory
-- Project rules live only in .github/copilot-instructions.md.
-- Repository memory lives only in .github/repo-memory.md. No other files are permitted inside .github/.
+- These Copilot files are legacy and are kept at the standard GitHub locations in case the project returns to GitHub Copilot. Claude Code uses CLAUDE.md at the repository root instead.
+- CLAUDE.md is the maintained rule set. Before returning to Copilot, sync these files with CLAUDE.md.
+- Project rules for Copilot live in .github/copilot-instructions.md, the standard GitHub Copilot repository instructions file.
+- Repository memory for Copilot lives in .github/repo-memory.md.
+- The .github/ folder may contain other standard GitHub files, such as workflows under .github/workflows/.
 - Read .github/repo-memory.md before starting work on the repository.
 
 ## 9. Project-Specific Rules (StratoHiDriveUtils)

@@ -25,10 +25,11 @@
 ## Documentation Preferences
 
 - README should not list the `.Test` folder.
-- README should not list the `.copilot` folder.
+- README should not list the Copilot rule and memory files in `.github`.
 - README should mention that AI/KI was used to create this module.
 - Keep each sentence on one line in README.md, comments, and comment-based help blocks.
 - Use exactly one comment-based help block at the beginning of each PowerShell script or module file.
 - Use regular single-line comments for all other comments, with a concise human-readable comment immediately before every function.
-- The project rule and memory files are `.copilot\copilot-instructions.md` and `.copilot\repo-memory.md`; no other project rule or memory paths are allowed.
+- The legacy Copilot rule and memory files are `.github\copilot-instructions.md` and `.github\repo-memory.md`.
+- Claude Code uses `CLAUDE.md` at the repository root, which is the maintained rule set.
 - Target Windows PowerShell 5.1 and follow Microsoft and PowerShell module-authoring best practices.

@@ -174,7 +174,7 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `1.1.4`.
+- Current manifest version: `1.1.6`.
 - The module file `StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ### Create a New Release
