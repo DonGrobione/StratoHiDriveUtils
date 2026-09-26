@@ -1,41 +1,33 @@
-<#
-.SYNOPSIS
-PowerShell module to control STRATO HiDrive and read the configured sync root.
-
-.DESCRIPTION
-Provides functions to start and stop the HiDrive desktop app and to determine the current sync root folder from HiDrive log files.
-
-.EXAMPLE
-Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
-Start-HiDrive
-Loads the module from the current directory and starts HiDrive.
-
-.EXAMPLE
-Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
-Stop-HiDrive
-Loads the module and stops all running HiDrive processes.
-
-.EXAMPLE
-Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
-Get-HiDriveSyncRoot
-Returns the sync root path directly, for example: C:\Users\<User>\HiDrive.
-If no entry is available in logs, the function writes a non-terminating error with the ID HiDriveSyncRootNotFound and returns no output.
-
-.EXAMPLE
-Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
-try {
-	$syncRoot = Get-HiDriveSyncRoot -ErrorAction Stop
-	"Sync root: $syncRoot"
-} catch {
-	"Sync root lookup failed: $($_.Exception.Message)"
-}
-Loads the module, reads the current HiDrive sync root from logs, and lets the calling script handle a failed lookup.
-#>
-
 Set-StrictMode -Version Latest
 
-# Starts the STRATO HiDrive desktop application from a known installation path and throws an error if not found.
 function Start-HiDrive {
+	<#
+	.SYNOPSIS
+	Starts the STRATO HiDrive desktop application.
+
+	.DESCRIPTION
+	Searches HiDrive.App.exe under %ProgramFiles%, %ProgramFiles(x86)%, and %LOCALAPPDATA% in the subfolder STRATO\HiDrive and starts the first match.
+	Throws a terminating error when the executable is not found in any of these paths.
+
+	.EXAMPLE
+	Start-HiDrive
+
+	Starts the HiDrive desktop application.
+
+	.EXAMPLE
+	Start-HiDrive -WhatIf
+
+	Shows which executable would be started without starting it.
+
+	.INPUTS
+	None. You cannot pipe objects to Start-HiDrive.
+
+	.OUTPUTS
+	None. Start-HiDrive does not return output.
+
+	.LINK
+	https://github.com/DonGrobione/StratoHiDriveUtils
+	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
 	param()
@@ -63,9 +55,35 @@ function Start-HiDrive {
 	}
 }
 
-# Stops all running STRATO HiDrive processes gracefully when possible and forcefully as a fallback.
-# Writes a non-terminating HiDriveProcessStopFailed error for each process that cannot be force-stopped and continues with the remaining processes.
 function Stop-HiDrive {
+	<#
+	.SYNOPSIS
+	Stops all running STRATO HiDrive processes.
+
+	.DESCRIPTION
+	Sends a graceful close request to every process whose name matches *HiDrive* and has a main window, waits briefly, and then force-stops the remaining matching processes.
+	Returns without error when no HiDrive process is running.
+	Writes a non-terminating error with the ID HiDriveProcessStopFailed for each process that cannot be force-stopped and continues with the remaining processes.
+
+	.EXAMPLE
+	Stop-HiDrive
+
+	Stops the HiDrive desktop application and its sync process.
+
+	.EXAMPLE
+	Stop-HiDrive -ErrorAction Stop
+
+	Stops HiDrive and throws a terminating error if a process cannot be stopped.
+
+	.INPUTS
+	None. You cannot pipe objects to Stop-HiDrive.
+
+	.OUTPUTS
+	None. Stop-HiDrive does not return output.
+
+	.LINK
+	https://github.com/DonGrobione/StratoHiDriveUtils
+	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
 	param()
@@ -103,9 +121,40 @@ function Stop-HiDrive {
 	}
 }
 
-# Reads the latest HiDrive sync root path from the application and sync log files, including rotated ones, newest file first.
-# Writes a non-terminating HiDriveSyncRootNotFound error, naming any unreadable log files, and returns no output when no matching log entry is available.
 function Get-HiDriveSyncRoot {
+	<#
+	.SYNOPSIS
+	Gets the local sync root folder of the STRATO HiDrive desktop application.
+
+	.DESCRIPTION
+	Reads the sync root path from HiDrive log entries instead of the HiDrive SQLite database to stay dependency-free.
+	Searches the application logs log.txt, log.0.txt, and so on under %LOCALAPPDATA%\HiDrive\Logs and the sync logs syncLog.txt, syncLog.0.txt, and so on in the numeric subfolders of %LOCALAPPDATA%\HiDrive\Data.
+	Files are searched from the most recently written to the oldest, and the last matching entry of the first file with a match is returned.
+	When no entry is found, writes a non-terminating error with the ID HiDriveSyncRootNotFound that names the searched folders and any unreadable log files, and returns no output.
+
+	.EXAMPLE
+	Get-HiDriveSyncRoot
+
+	Returns the sync root path, for example C:\Users\<User>\HiDrive.
+
+	.EXAMPLE
+	try {
+		$syncRoot = Get-HiDriveSyncRoot -ErrorAction Stop
+	} catch {
+		Write-Warning "Sync root lookup failed: $($_.Exception.Message)"
+	}
+
+	Reads the sync root and lets the calling script handle a failed lookup.
+
+	.INPUTS
+	None. You cannot pipe objects to Get-HiDriveSyncRoot.
+
+	.OUTPUTS
+	System.String. The sync root path.
+
+	.LINK
+	https://github.com/DonGrobione/StratoHiDriveUtils
+	#>
 	[CmdletBinding()]
 	[OutputType([string])]
 	param()
@@ -154,45 +203,85 @@ function Get-HiDriveSyncRoot {
 	Write-Error -Message $message -Category ObjectNotFound -ErrorId 'HiDriveSyncRootNotFound' -TargetObject $env:LOCALAPPDATA
 }
 
-# Downloads and installs the latest GitHub ZIP release into the active module path.
-# The update is blocked when multiple installations exist in the current PSModulePath.
-function Update-StratoHiDriveUtils {
+function Update-HiDriveUtility {
+	<#
+	.SYNOPSIS
+	Updates DonGrobione.StratoHiDriveUtils to the latest GitHub release.
+
+	.DESCRIPTION
+	Checks the latest GitHub release and, when it is newer than the loaded version, installs it into its own version folder next to the existing versions in the active module folder, like Update-Module.
+	An existing valid folder of the release version is reused and never overwritten; if the installation fails, only the new version folder is removed and the loaded version stays untouched.
+	After a successful installation, older version folders and flat installation files without a version folder are removed, and newer version folders are kept.
+	Old items that cannot be removed are returned in the FailedRemovals property and reported as a warning.
+	The update is refused for Git working trees and when the module exists in more than one PSModulePath entry.
+	If the update fails because of a breaking change, reinstall the module with Install-StratoHiDriveUtils.ps1.
+
+	.EXAMPLE
+	Update-HiDriveUtility
+
+	Installs the latest release after confirmation and removes older versions.
+
+	.EXAMPLE
+	Update-HiDriveUtility -WhatIf
+
+	Reports whether an update is available without changing anything.
+
+	.INPUTS
+	None. You cannot pipe objects to Update-HiDriveUtility.
+
+	.OUTPUTS
+	System.Management.Automation.PSCustomObject. A status object with the properties Status (UpToDate, UpdateAvailable, or Updated), LocalVersion, RemoteVersion, and ModulePath; updated installations also contain RemovedItems, FailedRemovals, and ReloadRequired.
+
+	.LINK
+	https://github.com/DonGrobione/StratoHiDriveUtils
+	#>
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 	[OutputType([pscustomobject])]
 	param()
 
 	$moduleName = $ExecutionContext.SessionState.Module.Name
-	$modulePath = [System.IO.Path]::GetFullPath($PSScriptRoot)
+	$modulePath = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 	$manifestPath = Join-Path $modulePath "$moduleName.psd1"
 	if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 		throw "The active module manifest was not found at '$manifestPath'."
 	}
-	$gitMetadataPath = Join-Path $modulePath '.git'
-	if (Test-Path -LiteralPath $gitMetadataPath) {
-		throw "The active module path '$modulePath' is a Git installation. Replace it with the ZIP release before using Update-StratoHiDriveUtils."
+
+	# The module runs either from a versioned folder <ModuleBase>\<ModuleName>\<Version> or from a legacy flat folder <ModuleBase>\<ModuleName>.
+	$moduleFolderName = Split-Path -Path $modulePath -Leaf
+	$parsedVersion = $null
+	if ($moduleFolderName -eq $moduleName) {
+		$moduleRoot = $modulePath
+	}
+	elseif ([version]::TryParse($moduleFolderName, [ref]$parsedVersion) -and (Split-Path -Path (Split-Path -Path $modulePath -Parent) -Leaf) -eq $moduleName) {
+		$moduleRoot = Split-Path -Path $modulePath -Parent
+	}
+	else {
+		throw "The active module path '$modulePath' is not a standard '$moduleName' installation path."
 	}
 
-	$modulePathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator | Where-Object { $_ })
-	$moduleCandidates = foreach ($modulePathEntry in $modulePathEntries) {
-		$candidatePath = Join-Path $modulePathEntry $moduleName
-		$candidateManifest = Join-Path $candidatePath "$moduleName.psd1"
-		if (Test-Path -LiteralPath $candidateManifest -PathType Leaf) {
-			[System.IO.Path]::GetFullPath($candidatePath)
-		}
+	if ((Test-Path -LiteralPath (Join-Path $moduleRoot '.git')) -or (Test-Path -LiteralPath (Join-Path $modulePath '.git'))) {
+		throw "The active module path '$modulePath' is a Git installation. Replace it with the ZIP release by running the installer before using Update-HiDriveUtility."
 	}
-	$moduleCandidates = @($moduleCandidates | Sort-Object -Unique)
-	if ($moduleCandidates.Count -eq 0 -or $moduleCandidates -notcontains $modulePath) {
-		throw "The active module path '$modulePath' is not a standard installation path in the current PSModulePath."
+
+	$moduleBase = Split-Path -Path $moduleRoot -Parent
+	$modulePathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator |
+		Where-Object { $_ } |
+		ForEach-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\') } |
+		Sort-Object -Unique)
+	if ($modulePathEntries -notcontains $moduleBase) {
+		throw "The active module path '$modulePath' is not located in the current PSModulePath."
 	}
-	if ($moduleCandidates.Count -gt 1) {
-		throw "Multiple '$moduleName' installations were found in the current PSModulePath. Remove duplicates before updating: $($moduleCandidates -join '; ')"
+	$moduleRoots = @($modulePathEntries |
+		ForEach-Object { Join-Path $_ $moduleName } |
+		Where-Object { Test-Path -LiteralPath $_ -PathType Container })
+	if ($moduleRoots.Count -gt 1) {
+		throw "'$moduleName' is installed in multiple PSModulePath entries. Remove the duplicates before updating: $($moduleRoots -join '; ')"
 	}
 
 	$localManifest = Import-PowerShellDataFile -LiteralPath $manifestPath
 	$localVersion = [version]$localManifest.ModuleVersion
 	$escapedModuleName = [regex]::Escape($moduleName)
 	$temporaryRoot = $null
-	$backupPath = $null
 
 	try {
 		$release = Invoke-RestMethod -Uri 'https://api.github.com/repos/DonGrobione/StratoHiDriveUtils/releases/latest' -Headers @{
@@ -216,7 +305,18 @@ function Update-StratoHiDriveUtils {
 			}
 		}
 
-		if (-not $PSCmdlet.ShouldProcess($modulePath, "Install $moduleName $remoteVersion from the GitHub ZIP release")) {
+		# Like Install-Module, each version gets its own folder; an existing folder of the release version is reused if valid and never overwritten.
+		$targetPath = Join-Path $moduleRoot $remoteVersion.ToString()
+		$targetManifest = Join-Path $targetPath "$moduleName.psd1"
+		$isAlreadyInstalled = $false
+		if (Test-Path -LiteralPath $targetPath) {
+			if (-not (Test-Path -LiteralPath $targetManifest -PathType Leaf) -or [version](Import-PowerShellDataFile -LiteralPath $targetManifest).ModuleVersion -ne $remoteVersion) {
+				throw "The folder '$targetPath' exists but does not contain a valid $moduleName $remoteVersion installation. Remove it and run the update again."
+			}
+			$isAlreadyInstalled = $true
+		}
+
+		if (-not $PSCmdlet.ShouldProcess($targetPath, "Install $moduleName $remoteVersion from the GitHub ZIP release and remove older versions")) {
 			return [pscustomobject]@{
 				Status = 'UpdateAvailable'
 				LocalVersion = $localVersion.ToString()
@@ -225,59 +325,83 @@ function Update-StratoHiDriveUtils {
 			}
 		}
 
-		$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-update-$([guid]::NewGuid().ToString('N'))"
-		$backupPath = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-backup-$([guid]::NewGuid().ToString('N'))"
-		$zipPath = Join-Path $temporaryRoot $releaseAsset[0].name
-		New-Item -ItemType Directory -Path $temporaryRoot -Force -ErrorAction Stop | Out-Null
-		Invoke-WebRequest -Uri $releaseAsset[0].browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
-		$extractPath = Join-Path $temporaryRoot 'Extracted'
-		Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
+		if (-not $isAlreadyInstalled) {
+			$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-update-$([guid]::NewGuid().ToString('N'))"
+			$zipPath = Join-Path $temporaryRoot $releaseAsset[0].name
+			New-Item -ItemType Directory -Path $temporaryRoot -Force -ErrorAction Stop | Out-Null
+			Invoke-WebRequest -Uri $releaseAsset[0].browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+			$extractPath = Join-Path $temporaryRoot 'Extracted'
+			Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
 
-		$packageManifest = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
-		if ($packageManifest.Count -ne 1) {
-			throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
-		}
-		$packageRoot = $packageManifest[0].Directory.FullName
-		$packageData = Import-PowerShellDataFile -LiteralPath $packageManifest[0].FullName
-		$packageVersion = [version]$packageData.ModuleVersion
-		if ($packageVersion -ne $remoteVersion) {
-			throw "The ZIP asset version $remoteVersion does not match the manifest version $packageVersion."
-		}
+			$packageManifest = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
+			if ($packageManifest.Count -ne 1) {
+				throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
+			}
+			$packageRoot = $packageManifest[0].Directory.FullName
+			$packageData = Import-PowerShellDataFile -LiteralPath $packageManifest[0].FullName
+			$packageVersion = [version]$packageData.ModuleVersion
+			if ($packageVersion -ne $remoteVersion) {
+				throw "The ZIP asset version $remoteVersion does not match the manifest version $packageVersion."
+			}
 
-		Copy-Item -LiteralPath $modulePath -Destination $backupPath -Recurse -Force -ErrorAction Stop
-		try {
-			Get-ChildItem -LiteralPath $modulePath -Force | Remove-Item -Recurse -Force -ErrorAction Stop
-			$packageFiles = Get-ChildItem -LiteralPath $packageRoot -File -Recurse -ErrorAction Stop
-			foreach ($packageFile in $packageFiles) {
-				$relativePath = $packageFile.FullName.Substring($packageRoot.Length).TrimStart('\', '/')
-				$destinationPath = Join-Path $modulePath $relativePath
-				$destinationDirectory = Split-Path -Path $destinationPath -Parent
-				New-Item -ItemType Directory -Path $destinationDirectory -Force -ErrorAction Stop | Out-Null
-				Copy-Item -LiteralPath $packageFile.FullName -Destination $destinationPath -Force -ErrorAction Stop
+			# The version folder is created by this call, so on failure it is removed again and older versions stay untouched.
+			New-Item -ItemType Directory -Path $targetPath -ErrorAction Stop | Out-Null
+			try {
+				Copy-Item -Path (Join-Path $packageRoot '*') -Destination $targetPath -Recurse -Force -ErrorAction Stop
+			}
+			catch {
+				$installError = $_
+				try {
+					Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction Stop
+				}
+				catch {
+					throw "Installing $moduleName $remoteVersion failed: $($installError.Exception.Message) The incomplete version folder '$targetPath' could not be removed: $($_.Exception.Message)"
+				}
+				throw $installError
 			}
 		}
-		catch {
-			Get-ChildItem -LiteralPath $modulePath -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-			Copy-Item -Path (Join-Path $backupPath '*') -Destination $modulePath -Recurse -Force -ErrorAction Stop
-			throw
+
+		# Legacy flat installation files and version folders older than the release are removed; newer versions are kept.
+		$removedItems = @()
+		$failedRemovals = @()
+		$oldItems = @(Get-ChildItem -LiteralPath $moduleRoot -Force -ErrorAction Stop | Where-Object {
+			$itemVersion = $null
+			(-not $_.PSIsContainer) -or
+			([version]::TryParse($_.Name, [ref]$itemVersion) -and $itemVersion -lt $remoteVersion)
+		})
+		foreach ($oldItem in $oldItems) {
+			try {
+				Remove-Item -LiteralPath $oldItem.FullName -Recurse -Force -ErrorAction Stop
+				$removedItems += $oldItem.FullName
+			}
+			catch {
+				$failedRemovals += "'$($oldItem.FullName)' ($($_.Exception.Message))"
+			}
+		}
+		if ($failedRemovals.Count -gt 0) {
+			Write-Warning "$moduleName $remoteVersion was installed, but these old installation items could not be removed: $($failedRemovals -join '; ')"
 		}
 
 		return [pscustomobject]@{
 			Status = 'Updated'
 			LocalVersion = $localVersion.ToString()
 			RemoteVersion = $remoteVersion.ToString()
-			ModulePath = $modulePath
+			ModulePath = $targetPath
+			RemovedItems = $removedItems
+			FailedRemovals = $failedRemovals
 			ReloadRequired = $true
 		}
 	}
 	finally {
-		if ($temporaryRoot) {
-			Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
-		}
-		if ($backupPath) {
-			Remove-Item -LiteralPath $backupPath -Recurse -Force -ErrorAction SilentlyContinue
+		if ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot)) {
+			try {
+				Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction Stop
+			}
+			catch {
+				Write-Warning "The temporary folder '$temporaryRoot' could not be removed: $($_.Exception.Message)"
+			}
 		}
 	}
 }
 
-Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot, Update-StratoHiDriveUtils
+Export-ModuleMember -Function Start-HiDrive, Stop-HiDrive, Get-HiDriveSyncRoot, Update-HiDriveUtility

@@ -3,9 +3,10 @@
 Installs or updates DonGrobione.StratoHiDriveUtils from the latest GitHub ZIP release.
 
 .DESCRIPTION
-Checks the latest GitHub release, detects existing module installations in the current Windows PowerShell 5.1 PSModulePath, and installs the release in the current user's Windows PowerShell module directory.
-An existing ZIP installation with the current version is left unchanged.
-Older installations, Git working trees, and installations under the legacy module name StratoHiDriveUtils are replaced.
+Checks the latest GitHub release, detects existing module installations in the current Windows PowerShell 5.1 PSModulePath, and installs the release as a versioned module folder in the current user's Windows PowerShell module directory, for example Modules\DonGrobione.StratoHiDriveUtils\<version>.
+Each version is installed into its own folder like Install-Module; an existing valid folder of the current version is reused and never overwritten.
+After a successful installation, older versions, flat installations without a version folder, Git working trees, and installations under the legacy module name StratoHiDriveUtils are removed.
+Old installations that cannot be removed are reported as warnings.
 
 .PARAMETER Force
 Suppresses the confirmation prompt for replacing an existing installation.
@@ -14,6 +15,20 @@ Suppresses the confirmation prompt for replacing an existing installation.
 .\Install-StratoHiDriveUtils.ps1 -Force
 
 Installs or updates DonGrobione.StratoHiDriveUtils without prompting.
+
+.INPUTS
+None. You cannot pipe objects to this script.
+
+.OUTPUTS
+System.String. A message that describes the installation result.
+
+.NOTES
+This script ships in the release ZIP and is versioned by the module manifest.
+README.md contains the one-line command that downloads and runs it via Invoke-RestMethod and Invoke-Expression.
+Rerun it to repair an installation or when Update-HiDriveUtility cannot update across a breaking change.
+
+.LINK
+https://github.com/DonGrobione/StratoHiDriveUtils
 #>
 
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
@@ -28,7 +43,6 @@ $legacyModuleName = 'StratoHiDriveUtils'
 $escapedModuleName = [regex]::Escape($moduleName)
 $repositoryName = 'DonGrobione/StratoHiDriveUtils'
 $temporaryRoot = $null
-$backupRoot = $null
 
 try {
 	$release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repositoryName/releases/latest" -Headers @{
@@ -43,25 +57,50 @@ try {
 	}
 
 	$releaseVersion = [version]($releaseAssets[0].name -replace "^$escapedModuleName-|\.zip$")
-	$pathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator | Where-Object { $_ })
-	$moduleCandidates = foreach ($pathEntry in $pathEntries) {
+	$pathEntries = @($env:PSModulePath -split [System.IO.Path]::PathSeparator |
+		Where-Object { $_ } |
+		ForEach-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\') } |
+		Sort-Object -Unique)
+
+	# Installations are either flat (<ModuleBase>\<Name>\<Name>.psd1) or versioned (<ModuleBase>\<Name>\<Version>\<Name>.psd1).
+	$moduleCandidates = @(foreach ($pathEntry in $pathEntries) {
 		foreach ($candidateName in @($moduleName, $legacyModuleName)) {
-			$candidatePath = Join-Path $pathEntry $candidateName
-			$candidateManifest = Join-Path $candidatePath "$candidateName.psd1"
-			if (Test-Path -LiteralPath $candidateManifest -PathType Leaf) {
-				$manifestData = Import-PowerShellDataFile -LiteralPath $candidateManifest
+			$candidateRoot = Join-Path $pathEntry $candidateName
+			if (-not (Test-Path -LiteralPath $candidateRoot -PathType Container)) {
+				continue
+			}
+
+			$rootIsGit = Test-Path -LiteralPath (Join-Path $candidateRoot '.git')
+			$flatManifest = Join-Path $candidateRoot "$candidateName.psd1"
+			if (Test-Path -LiteralPath $flatManifest -PathType Leaf) {
 				[pscustomobject]@{
-					Path = [System.IO.Path]::GetFullPath($candidatePath)
-					Version = [version]$manifestData.ModuleVersion
-					IsGit = Test-Path -LiteralPath (Join-Path $candidatePath '.git')
+					Path = $candidateRoot
+					Root = $candidateRoot
+					Version = [version](Import-PowerShellDataFile -LiteralPath $flatManifest).ModuleVersion
+					IsGit = $rootIsGit
 					IsLegacy = $candidateName -eq $legacyModuleName
+					IsVersioned = $false
+				}
+			}
+
+			foreach ($versionFolder in @(Get-ChildItem -LiteralPath $candidateRoot -Directory -Force -ErrorAction Stop)) {
+				$folderVersion = $null
+				$versionManifest = Join-Path $versionFolder.FullName "$candidateName.psd1"
+				if ([version]::TryParse($versionFolder.Name, [ref]$folderVersion) -and (Test-Path -LiteralPath $versionManifest -PathType Leaf)) {
+					[pscustomobject]@{
+						Path = $versionFolder.FullName
+						Root = $candidateRoot
+						Version = [version](Import-PowerShellDataFile -LiteralPath $versionManifest).ModuleVersion
+						IsGit = $rootIsGit -or (Test-Path -LiteralPath (Join-Path $versionFolder.FullName '.git'))
+						IsLegacy = $candidateName -eq $legacyModuleName
+						IsVersioned = $true
+					}
 				}
 			}
 		}
-	}
-	$moduleCandidates = @($moduleCandidates | Sort-Object Path -Unique)
+	})
 
-	$validCurrentInstallations = @($moduleCandidates | Where-Object { $_.Version -eq $releaseVersion -and -not $_.IsGit -and -not $_.IsLegacy })
+	$validCurrentInstallations = @($moduleCandidates | Where-Object { $_.Version -eq $releaseVersion -and $_.IsVersioned -and -not $_.IsGit -and -not $_.IsLegacy })
 	if ($moduleCandidates.Count -eq 1 -and $validCurrentInstallations.Count -eq 1) {
 		Write-Output "$moduleName $releaseVersion is already installed at '$($validCurrentInstallations[0].Path)'. No changes were made."
 		return
@@ -71,22 +110,26 @@ try {
 	if ([string]::IsNullOrWhiteSpace($userDocuments)) {
 		$userDocuments = Join-Path $HOME 'Documents'
 	}
-	$userModuleBase = Join-Path $userDocuments 'WindowsPowerShell\Modules'
-	$targetPath = Join-Path $userModuleBase $moduleName
-	$targetParent = [System.IO.Path]::GetFullPath($userModuleBase)
-	$knownModuleBases = @($pathEntries | ForEach-Object { [System.IO.Path]::GetFullPath($_) })
-	if ($knownModuleBases -notcontains $targetParent) {
-		throw "The target module directory '$targetParent' is not part of the current PSModulePath."
+	$userModuleBase = [System.IO.Path]::GetFullPath((Join-Path $userDocuments 'WindowsPowerShell\Modules')).TrimEnd('\')
+	if ($pathEntries -notcontains $userModuleBase) {
+		throw "The target module directory '$userModuleBase' is not part of the current PSModulePath."
+	}
+	$targetRoot = Join-Path $userModuleBase $moduleName
+	$targetPath = Join-Path $targetRoot $releaseVersion.ToString()
+
+	# Like Install-Module, each version gets its own folder; an existing folder of the release version is reused if valid and never overwritten.
+	$isAlreadyInstalled = @($moduleCandidates | Where-Object { $_.Path -eq $targetPath -and $_.Version -eq $releaseVersion }).Count -gt 0
+	if (-not $isAlreadyInstalled -and (Test-Path -LiteralPath $targetPath)) {
+		throw "The folder '$targetPath' exists but does not contain a valid $moduleName $releaseVersion installation. Remove it and run the installer again."
 	}
 
-	$action = "Replace existing $moduleName and $legacyModuleName installations with release $releaseVersion at '$targetPath'"
+	$action = "Install release $releaseVersion at '$targetPath' and remove older $moduleName and $legacyModuleName installations"
+	# Under irm | iex, $PSCmdlet does not exist and parameters keep their defaults, so the installer runs without a confirmation prompt there.
 	$shouldInstall = $false
-	$forceValue = Get-Variable -Name Force -ValueOnly -ErrorAction SilentlyContinue
-	$whatIfValue = Get-Variable -Name WhatIfPreference -ValueOnly -ErrorAction SilentlyContinue
-	$cmdletValue = Get-Variable -Name PSCmdlet -ValueOnly -ErrorAction SilentlyContinue
-	if ($whatIfValue) {
+	$cmdletValue = Get-Variable -Name PSCmdlet -ValueOnly -ErrorAction Ignore
+	if ($WhatIfPreference) {
 		$shouldInstall = $false
-	} elseif ($forceValue) {
+	} elseif ($Force) {
 		$shouldInstall = $true
 	} elseif ($null -ne $cmdletValue -and $cmdletValue.ShouldProcess($targetPath, $action)) {
 		$shouldInstall = $true
@@ -98,70 +141,90 @@ try {
 		return
 	}
 
-	$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-installer-$([guid]::NewGuid().ToString('N'))"
-	$backupRoot = Join-Path $temporaryRoot 'Backups'
-	$zipPath = Join-Path $temporaryRoot $releaseAssets[0].name
-	$extractPath = Join-Path $temporaryRoot 'Extracted'
-	New-Item -ItemType Directory -Path $temporaryRoot, $backupRoot -Force -ErrorAction Stop | Out-Null
-	Invoke-WebRequest -Uri $releaseAssets[0].browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
-	Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
+	if (-not $isAlreadyInstalled) {
+		$temporaryRoot = Join-Path ([System.IO.Path]::GetTempPath()) "$moduleName-installer-$([guid]::NewGuid().ToString('N'))"
+		$zipPath = Join-Path $temporaryRoot $releaseAssets[0].name
+		$extractPath = Join-Path $temporaryRoot 'Extracted'
+		New-Item -ItemType Directory -Path $temporaryRoot -Force -ErrorAction Stop | Out-Null
+		Invoke-WebRequest -Uri $releaseAssets[0].browser_download_url -OutFile $zipPath -UseBasicParsing -ErrorAction Stop
+		Expand-Archive -LiteralPath $zipPath -DestinationPath $extractPath -Force -ErrorAction Stop
 
-	$packageManifests = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
-	if ($packageManifests.Count -ne 1) {
-		throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
-	}
-	$packageRoot = $packageManifests[0].Directory.FullName
-	$packageData = Import-PowerShellDataFile -LiteralPath $packageManifests[0].FullName
-	$packageVersion = [version]$packageData.ModuleVersion
-	if ($packageVersion -ne $releaseVersion) {
-		throw "The ZIP asset version $releaseVersion does not match the manifest version $packageVersion."
+		$packageManifests = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
+		if ($packageManifests.Count -ne 1) {
+			throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
+		}
+		$packageRoot = $packageManifests[0].Directory.FullName
+		$packageData = Import-PowerShellDataFile -LiteralPath $packageManifests[0].FullName
+		$packageVersion = [version]$packageData.ModuleVersion
+		if ($packageVersion -ne $releaseVersion) {
+			throw "The ZIP asset version $releaseVersion does not match the manifest version $packageVersion."
+		}
+
+		# The version folder is created by this run, so on failure it is removed again and existing installations stay untouched.
+		New-Item -ItemType Directory -Path $targetRoot -Force -ErrorAction Stop | Out-Null
+		New-Item -ItemType Directory -Path $targetPath -ErrorAction Stop | Out-Null
+		try {
+			Copy-Item -Path (Join-Path $packageRoot '*') -Destination $targetPath -Recurse -Force -ErrorAction Stop
+		}
+		catch {
+			$installError = $_
+			try {
+				Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction Stop
+			}
+			catch {
+				throw "Installing $moduleName $releaseVersion failed: $($installError.Exception.Message) The incomplete version folder '$targetPath' could not be removed: $($_.Exception.Message)"
+			}
+			throw $installError
+		}
 	}
 
-	$backups = @()
-	foreach ($candidate in $moduleCandidates) {
-		$backupPath = Join-Path $backupRoot ([guid]::NewGuid().ToString('N'))
-		Copy-Item -LiteralPath $candidate.Path -Destination $backupPath -Recurse -Force -ErrorAction Stop
-		$backups += [pscustomobject]@{ OriginalPath = $candidate.Path; BackupPath = $backupPath }
-	}
-
+	# Old installations are removed only after the new version is installed; versioned folders are removed as a whole, flat installations lose everything except version folders.
 	Get-Module -Name $moduleName, $legacyModuleName | Remove-Module -Force -ErrorAction SilentlyContinue
-	foreach ($candidate in $moduleCandidates) {
-		if (Test-Path -LiteralPath $candidate.Path) {
-			Remove-Item -LiteralPath $candidate.Path -Recurse -Force -ErrorAction Stop
+	$failedRemovals = @()
+	foreach ($candidate in @($moduleCandidates | Where-Object { $_.Path -ne $targetPath })) {
+		if ($candidate.IsVersioned) {
+			$oldItems = @(Get-Item -LiteralPath $candidate.Path -Force -ErrorAction Stop)
 		}
-	}
-	if (Test-Path -LiteralPath $targetPath) {
-		Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction Stop
-	}
-	New-Item -ItemType Directory -Path $targetPath -Force -ErrorAction Stop | Out-Null
+		else {
+			$oldItems = @(Get-ChildItem -LiteralPath $candidate.Root -Force -ErrorAction Stop | Where-Object {
+				$itemVersion = $null
+				-not ($_.PSIsContainer -and [version]::TryParse($_.Name, [ref]$itemVersion))
+			})
+		}
 
-	try {
-		$packageFiles = Get-ChildItem -LiteralPath $packageRoot -File -Recurse -ErrorAction Stop
-		foreach ($packageFile in $packageFiles) {
-			$relativePath = $packageFile.FullName.Substring($packageRoot.Length).TrimStart('\', '/')
-			$destinationPath = Join-Path $targetPath $relativePath
-			$destinationDirectory = Split-Path -Path $destinationPath -Parent
-			New-Item -ItemType Directory -Path $destinationDirectory -Force -ErrorAction Stop | Out-Null
-			Copy-Item -LiteralPath $packageFile.FullName -Destination $destinationPath -Force -ErrorAction Stop
+		foreach ($oldItem in $oldItems) {
+			try {
+				Remove-Item -LiteralPath $oldItem.FullName -Recurse -Force -ErrorAction Stop
+			}
+			catch {
+				$failedRemovals += "'$($oldItem.FullName)' ($($_.Exception.Message))"
+			}
 		}
-	}
-	catch {
-		Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction SilentlyContinue
-		foreach ($backup in $backups) {
-			New-Item -ItemType Directory -Path (Split-Path -Path $backup.OriginalPath -Parent) -Force -ErrorAction SilentlyContinue | Out-Null
-			Copy-Item -Path (Join-Path $backup.BackupPath '*') -Destination $backup.OriginalPath -Recurse -Force -ErrorAction Stop
-		}
-		throw
 	}
 
+	foreach ($oldRoot in @($moduleCandidates | Where-Object { $_.Root -ne $targetRoot } | Select-Object -ExpandProperty Root -Unique)) {
+		if ((Test-Path -LiteralPath $oldRoot -PathType Container) -and -not (Get-ChildItem -LiteralPath $oldRoot -Force -ErrorAction Stop)) {
+			try {
+				Remove-Item -LiteralPath $oldRoot -Force -ErrorAction Stop
+			}
+			catch {
+				$failedRemovals += "'$oldRoot' ($($_.Exception.Message))"
+			}
+		}
+	}
+
+	if ($failedRemovals.Count -gt 0) {
+		Write-Warning "$moduleName $releaseVersion was installed, but these old installation items could not be removed: $($failedRemovals -join '; ')"
+	}
 	Write-Output "$moduleName $releaseVersion was installed at '$targetPath'. Start a new Windows PowerShell session or import the module again."
 }
-catch {
-	Write-Error $_.Exception.Message
-	throw
-}
 finally {
-	if ($temporaryRoot) {
-		Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction SilentlyContinue
+	if ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot)) {
+		try {
+			Remove-Item -LiteralPath $temporaryRoot -Recurse -Force -ErrorAction Stop
+		}
+		catch {
+			Write-Warning "The temporary folder '$temporaryRoot' could not be removed: $($_.Exception.Message)"
+		}
 	}
 }

@@ -7,8 +7,8 @@ This module was primarily created for personal use.
 
 ```text
 DonGrobione.StratoHiDriveUtils/
-|-- License.md                            # CC BY-NC-SA 4.0 license for this project
-|-- Install-StratoHiDriveUtils.ps1        # One-command installer for the latest release
+|-- License.md                            # GNU AGPL-3.0 license for this project
+|-- Install-StratoHiDriveUtils.ps1        # Installer for the latest release, also included in the release ZIP
 |-- DonGrobione.StratoHiDriveUtils.psd1   # Module manifest
 |-- DonGrobione.StratoHiDriveUtils.psm1   # Main module with exported functions
 `-- README.md                             # This documentation
@@ -17,12 +17,12 @@ DonGrobione.StratoHiDriveUtils/
 ## Module Overview
 
 The module is defined by `DonGrobione.StratoHiDriveUtils.psd1` and loads `DonGrobione.StratoHiDriveUtils.psm1`.
-It exports four functions:
+It exports four functions, each with full comment-based help available through `Get-Help`, for example `Get-Help Get-HiDriveSyncRoot -Full`:
 
 - `Start-HiDrive`
 - `Stop-HiDrive`
 - `Get-HiDriveSyncRoot`
-- `Update-StratoHiDriveUtils`
+- `Update-HiDriveUtility`
 
 ## Requirements
 
@@ -38,12 +38,31 @@ Copy the following single line into Windows PowerShell 5.1.
 It downloads and runs the installer directly:
 
 ```powershell
-irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/v2.0.0/Install-StratoHiDriveUtils.ps1 | iex
+irm https://raw.githubusercontent.com/DonGrobione/StratoHiDriveUtils/v3.0.0/Install-StratoHiDriveUtils.ps1 | iex
 ```
 
 The installer downloads the latest GitHub ZIP release and checks the manifest version before installation.
-If the current ZIP release is already installed, it reports this and makes no changes.
-Older installations, Git installations, and installations under the legacy module name `StratoHiDriveUtils` are removed and replaced at the Windows PowerShell 5.1 user module path.
+The release is installed as a versioned module folder at the Windows PowerShell 5.1 user module path, for example `Documents\WindowsPowerShell\Modules\DonGrobione.StratoHiDriveUtils\3.0.0`.
+If the current release is already installed in a versioned folder, the installer reports this and makes no changes.
+Like `Install-Module`, each version is installed into its own version folder, so a new version never conflicts with an installed one, for example `2.2.0` and `3.0.0` side by side.
+An existing valid folder of the release version is reused and never overwritten; if the installation of a new version fails, only its new version folder is removed and existing installations stay untouched.
+Afterwards, older versions, flat installations without a version folder, Git installations, and installations under the legacy module name `StratoHiDriveUtils` are removed.
+Old installations that cannot be removed, for example in an all-users path without administrator rights, are reported as warnings.
+
+The installer is also part of every release ZIP and therefore of every installed version.
+If an update fails, for example across a breaking change, rerun it from the installed module:
+
+```powershell
+$module = Get-Module DonGrobione.StratoHiDriveUtils -ListAvailable | Sort-Object Version -Descending | Select-Object -First 1
+& (Join-Path $module.ModuleBase 'Install-StratoHiDriveUtils.ps1')
+```
+
+### Upgrading from Version 2.x
+
+Version 3.0.0 renamed the update command from `Update-StratoHiDriveUtils` to `Update-HiDriveUtility` to follow the PowerShell naming rule for singular nouns.
+Versions up to 2.1.0 were also installed without a version folder.
+Run the one-command installer once to install 3.0.0 in the versioned layout and remove the 2.x installation.
+Scripts that call `Update-StratoHiDriveUtils` must be changed to `Update-HiDriveUtility`.
 
 ### Upgrading from Version 1.x
 
@@ -60,10 +79,10 @@ After downloading, extract the ZIP into the appropriate module directory:
 
 | PowerShell Version | Target Directory |
 |--------------------|------------------|
-| Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\DonGrobione.StratoHiDriveUtils` |
+| Windows PowerShell 5.1 | `%USERPROFILE%\Documents\WindowsPowerShell\Modules\DonGrobione.StratoHiDriveUtils\<version>` |
 
-> **Note:** The target directory must be named `DonGrobione.StratoHiDriveUtils` for PowerShell to auto-discover the module.
-> Keep only one installation in the active PowerShell version's `PSModulePath`.
+> **Note:** The module folder must be named `DonGrobione.StratoHiDriveUtils` and the version folder must match `ModuleVersion` in the manifest, for example `3.0.0`, for PowerShell to auto-discover the module.
+> Keep the module in only one `PSModulePath` entry; multiple version folders inside it are supported.
 
 Then load the module:
 
@@ -129,20 +148,24 @@ try {
 
 ### 4) Update from the ZIP Release
 
-`Update-StratoHiDriveUtils` checks the latest GitHub release and updates the currently loaded module installation in place.
-It does not create a second module directory.
-The active module path must be present in the current PowerShell version's `PSModulePath`, and duplicate installations are rejected.
-Existing Git installations must be replaced with the ZIP release first; the update command does not overwrite a Git working tree.
+`Update-HiDriveUtility` checks the latest GitHub release and installs it as a new version folder next to the currently loaded version, following the PowerShell side-by-side module layout.
+Like `Update-Module`, the new version is installed into its own version folder, so it never conflicts with the loaded version.
+An existing valid folder of the release version is reused and never overwritten; if the installation fails, only the new version folder is removed and the loaded version stays untouched.
+After a successful update, older version folders and flat installation files without a version folder are removed; newer version folders are kept.
+Old items that cannot be removed are listed in the `FailedRemovals` property of the returned status object and reported as a warning.
+The module must be located in the current PowerShell version's `PSModulePath` and exist in only one of its entries.
+Existing Git installations must be replaced with the ZIP release first by running the installer; the update command does not overwrite a Git working tree.
+If the update fails, reinstall the module with the installer as described under Installation.
 
 ```powershell
 Import-Module DonGrobione.StratoHiDriveUtils -Force
-Update-StratoHiDriveUtils
+Update-HiDriveUtility
 ```
 
 To check the available version without changing anything, use `-WhatIf`:
 
 ```powershell
-Update-StratoHiDriveUtils -WhatIf
+Update-HiDriveUtility -WhatIf
 ```
 
 After a successful update, reload the module:
@@ -185,8 +208,10 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `DonGrobione.StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `2.1.0`.
+- Current manifest version: `3.0.0`.
 - The module file `DonGrobione.StratoHiDriveUtils.psm1` does not duplicate module version metadata.
+- Versions follow Semantic Versioning: the major version increases for breaking changes such as renamed functions or a changed installation layout, the minor version for new features, and the patch version for fixes.
+- Every release ZIP contains the files listed in `FileList` of the manifest, including `Install-StratoHiDriveUtils.ps1`.
 
 ### Create a New Release
 
@@ -201,7 +226,7 @@ For version `2.0.0`, the workflow creates tag `v2.0.0` and release file `DonGrob
 
 ## License
 
-This project is licensed under the Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0).
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
 See `License.md` for the full license text.
 
 ## Disclaimer

@@ -4,31 +4,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-DonGrobione.StratoHiDriveUtils is a small, dependency-free Windows PowerShell 5.1 module for controlling the STRATO HiDrive desktop client: `Start-HiDrive`, `Stop-HiDrive`, `Get-HiDriveSyncRoot`, and the self-updater `Update-StratoHiDriveUtils`. All code lives in `DonGrobione.StratoHiDriveUtils.psm1` (functions), `DonGrobione.StratoHiDriveUtils.psd1` (manifest), and the standalone root-level installer `Install-StratoHiDriveUtils.ps1`.
+DonGrobione.StratoHiDriveUtils is a small, dependency-free Windows PowerShell 5.1 module for controlling the STRATO HiDrive desktop client: `Start-HiDrive`, `Stop-HiDrive`, `Get-HiDriveSyncRoot`, and the self-updater `Update-HiDriveUtility`. All code lives in `DonGrobione.StratoHiDriveUtils.psm1` (functions), `DonGrobione.StratoHiDriveUtils.psd1` (manifest), and the standalone root-level installer `Install-StratoHiDriveUtils.ps1`, which also ships inside the release ZIP. The project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0, `License.md`).
 
-The module was renamed from `StratoHiDriveUtils` in 2.0.0 to follow the `Company.Product` naming convention. The GitHub repository, the function names, and the installer file name deliberately keep the old name. The installer detects and replaces installations under the legacy name; 1.x `Update-StratoHiDriveUtils` cannot reach 2.x releases, so users migrate by rerunning the installer. The module folder name must equal the module name (`DonGrobione.StratoHiDriveUtils`) for auto-discovery.
+The module was renamed from `StratoHiDriveUtils` in 2.0.0 to follow the `Company.Product` naming convention; the GitHub repository and the installer file name deliberately keep the old name. In 3.0.0 the self-updater was renamed from `Update-StratoHiDriveUtils` to `Update-HiDriveUtility` to use a singular noun. Breaking changes are acceptable when they bring the module in line with PowerShell best practices; users of affected versions reinstall with the installer script, and README.md documents that migration.
 
-This file is the only rule set for the project; the former GitHub Copilot rules and repository memory were merged into it. The goal is compliance with Microsoft and PowerShell module-authoring best practices. `.github/` holds only standard GitHub files such as workflows. `.Test/` and `.vscode/` are gitignored local scratch folders and must not be documented in README.md.
+Installations use the side-by-side layout `<ModuleBase>\DonGrobione.StratoHiDriveUtils\<ModuleVersion>\` used by `Install-Module`; the module folder name must equal the module name and the version folder must equal `ModuleVersion` for auto-discovery. Releases up to 2.1.0 used a flat layout without a version folder, which the installer and updater migrate.
+
+This file is the only rule set for the project. The goal is compliance with Microsoft PowerShell module-authoring guidelines and PowerShell Gallery publishing best practices, even though the module is distributed through GitHub releases and not the Gallery. `.github/` holds only standard GitHub files such as workflows. `.Test/` and `.vscode/` are gitignored local scratch folders and must not be documented in README.md.
 
 ## Validation
 
-There is no test suite or build step. Before finishing work, parse changed files with Windows PowerShell 5.1 (not pwsh) and run PSScriptAnalyzer if installed, fixing any diagnostics the change introduced:
+There is no test suite or build step. Before finishing work, run these checks with Windows PowerShell 5.1 (not pwsh). The manifest must pass `Test-ModuleManifest`, every file must parse, and PSScriptAnalyzer must report no findings of any severity, as required for PowerShell Gallery publishing:
 
 ```powershell
-powershell.exe -NoProfile -Command "`$e=`$null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path .\DonGrobione.StratoHiDriveUtils.psm1), [ref]`$null, [ref]`$e); `$e"
+powershell.exe -NoProfile -Command "foreach (`$f in '.\DonGrobione.StratoHiDriveUtils.psm1', '.\Install-StratoHiDriveUtils.ps1') { `$e = `$null; [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path `$f), [ref]`$null, [ref]`$e); `$e }"
+powershell.exe -NoProfile -Command "Test-ModuleManifest .\DonGrobione.StratoHiDriveUtils.psd1"
 powershell.exe -NoProfile -Command "Invoke-ScriptAnalyzer -Path . -Recurse"
-powershell.exe -NoProfile -Command "Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force; Get-Command -Module DonGrobione.StratoHiDriveUtils"
+powershell.exe -NoProfile -Command "Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force; Get-Command -Module DonGrobione.StratoHiDriveUtils; Get-Help Update-HiDriveUtility -Full"
 ```
 
-## Release Pipeline
+## Versioning and Release Pipeline
 
-`ModuleVersion` in `DonGrobione.StratoHiDriveUtils.psd1` is the single source of truth for the version; never duplicate it in comment-based help. The installer ships inside the release ZIP and is versioned by the manifest, so it carries no version of its own. README.md states the current version under "Versioning"; keep it in sync with the manifest.
+`ModuleVersion` in `DonGrobione.StratoHiDriveUtils.psd1` is the single source of truth for the version; never duplicate it in comment-based help. It follows Semantic Versioning: MAJOR for breaking changes (a removed or renamed exported function, changed parameters, changed output, or a changed installation layout), MINOR for backward-compatible features, PATCH for fixes. The installer ships inside the release ZIP and is versioned by the manifest, so it carries no version of its own. README.md states the current version under "Versioning"; keep it in sync with the manifest.
 
-Every push to `main` triggers `.github/workflows/create-powershell-release.yml`, which reads `ModuleVersion` via sed (the line format `ModuleVersion = 'x.y.z'` must stay intact), zips all tracked files except `.github/`, `.gitignore`, and `CLAUDE.md` into `DonGrobione.StratoHiDriveUtils-<version>.zip`, and publishes GitHub release `v<version>`. The tag must not already exist, so any push to `main` that should succeed needs a version bump. New tooling-only files at the repo root must be added to the `git ls-files` exclusions, otherwise they ship in the module.
+Every push to `main` triggers `.github/workflows/create-powershell-release.yml`, which reads `ModuleVersion` via sed (the line format `ModuleVersion = 'x.y.z'` must stay intact), zips all tracked files except `.github/`, `.gitignore`, and `CLAUDE.md` into `DonGrobione.StratoHiDriveUtils-<version>.zip` with the manifest at the ZIP root, and publishes GitHub release `v<version>`. The tag must not already exist, so any push to `main` that should succeed needs a version bump. New tooling-only files at the repo root must be added to the `git ls-files` exclusions, otherwise they ship in the module. Every shipped file, including `Install-StratoHiDriveUtils.ps1`, must be listed in the manifest's `FileList`, and `FileList` must not list anything that is not shipped.
 
-Both the installer and `Update-StratoHiDriveUtils` consume that release: they query the GitHub `releases/latest` API, require exactly one asset matching `^DonGrobione\.StratoHiDriveUtils-x.y.z.zip$` (the module name is regex-escaped), verify the extracted manifest version matches the asset name, and replace the module folder with a temp backup/rollback. They refuse Git working-tree installations (`.git` present); the updater also refuses duplicate installations across `PSModulePath`. Changing the asset naming, ZIP layout, or manifest format affects all three pieces.
+Both the installer and `Update-HiDriveUtility` consume that release: they query the GitHub `releases/latest` API, require exactly one asset matching `^DonGrobione\.StratoHiDriveUtils-x.y.z.zip$` (the module name is regex-escaped), verify the extracted manifest version matches the asset name, install the release directly into its own version folder like `Install-Module` (no staging or hidden folders; an existing valid folder of that version is reused and never overwritten, and only a version folder created by the failing run is removed on error), and only then remove old installations. Failed removals of old installations are warnings, not failures. The updater removes older version folders and flat files in its own module root but keeps newer versions; the installer removes every other installation, including Git working trees and the legacy name. The updater refuses Git working-tree installations (`.git` present) and module folders in more than one `PSModulePath` entry. Changing the asset naming, ZIP layout, or manifest format affects all three pieces.
 
-The installer is run via `irm ... | iex` from a URL pinned to a release tag in README.md (update that tag when the installer changes), so it must never call `exit`, which would close the user's session; it signals failure with `throw`.
+The installer is run via `irm ... | iex` from a URL pinned to a release tag in README.md (update that tag when the installer changes), so it must never call `exit`, which would close the user's session; it signals failure with `throw`. Under `iex`, `$PSCmdlet` does not exist while parameters such as `$Force` keep their defaults, so the installer reads `$PSCmdlet` only through `Get-Variable`.
 
 ## Key Behavior
 
@@ -38,18 +41,25 @@ The installer is run via `irm ... | iex` from a URL pinned to a release tag in R
 - Older versions and HiDrive 7.x write it to rotating logs `syncLog.txt`, `syncLog.0.txt`, and so on in subfolders of `%LOCALAPPDATA%\HiDrive\Data\` matching `^\d+\.\d+$` (for example `52794237.1`); HiDrive 7.x no longer writes it to `Logs\log.txt`.
 - Rotation means the current file often has no match, so rotated files must always be searched.
 
+## Module Manifest
+
+- The manifest defines `RootModule`, `ModuleVersion`, `GUID` (never changes), `Author`, `CompanyName`, `Copyright` (naming the AGPL-3.0 license), `Description`, `PowerShellVersion = '5.1'`, `CompatiblePSEditions = @('Desktop')`, and `FileList`.
+- `FunctionsToExport` lists every public function explicitly and matches `Export-ModuleMember` in the .psm1; `CmdletsToExport`, `VariablesToExport`, and `AliasesToExport` stay explicitly `@()`. Never use wildcards.
+- `PrivateData.PSData` contains `Tags` (no spaces, including `Windows` and `PSEdition_Desktop`), `ProjectUri`, `LicenseUri`, and `ReleaseNotes`.
+
 ## Code Rules
 
 - Must parse and run in Windows PowerShell 5.1; no PowerShell 6+ syntax, operators, automatic variables, or cmdlets. Existing code uses tab indentation.
 - Standalone installer scripts live at the project root.
-- Each .ps1/.psm1 has exactly one comment-based help block, as the first content (only `#requires` may precede it). No help blocks inside functions; all other comments are single-line `#`.
-- Every function gets a concise `#` comment immediately before its definition describing its responsibility and observable behavior.
+- Every exported function has complete comment-based help as the first content inside the function body: `.SYNOPSIS`, `.DESCRIPTION`, one `.PARAMETER` per parameter, at least one `.EXAMPLE`, `.INPUTS`, `.OUTPUTS`, and `.LINK` to the project page. Private helper functions get a concise `#` comment immediately before their definition instead.
+- The .psm1 has no file-level help block, because `Get-Help` does not use it; the module overview lives in README.md. Each .ps1 script has exactly one comment-based help block as its first content (only `#requires` may precede it). All other comments are single-line `#`.
 - Never break a sentence across lines in README.md, comments, or help blocks; new lines only between sentences or list items. All code, comments, help, output, log messages, and docs in English.
-- Approved verbs (verify with `Get-Verb`) and descriptive PascalCase/camelCase names without abbreviations, except loop counters. Single-responsibility, action-oriented functions with early returns. No aliases, `Invoke-Expression`, wildcard exports, global state, or unnecessary side effects.
-- Use `[CmdletBinding()]`, with `SupportsShouldProcess` for state-changing or destructive actions. `Set-StrictMode -Version Latest` is mandatory at script/module scope.
-- When adding a public function, update both `FunctionsToExport` in the manifest and `Export-ModuleMember` in the .psm1. Keep `CmdletsToExport`, `VariablesToExport`, `AliasesToExport` explicitly `@()`.
+- Approved verbs (verify with `Get-Verb`) and singular nouns with the shared `HiDrive` noun prefix for public functions. Descriptive PascalCase/camelCase names without abbreviations, except loop counters. Single-responsibility, action-oriented functions with early returns. No aliases, `Invoke-Expression`, wildcard exports, global state, or unnecessary side effects.
+- Use `[CmdletBinding()]` and `[OutputType()]` on every function, with `SupportsShouldProcess` and a fitting `ConfirmImpact` for state-changing or destructive actions. `Set-StrictMode -Version Latest` is mandatory at script/module scope.
+- Functions return objects, not formatted text, and never use `Write-Host`. Use `Write-Error` for non-terminating errors, `throw` for terminating ones, `Write-Warning` for completed operations with partial problems, and `Write-Verbose` for diagnostic detail.
+- When adding a public function, update `FunctionsToExport` in the manifest, `Export-ModuleMember` in the .psm1, and README.md.
 - Validate inputs and paths at boundaries: `Join-Path`, `Test-Path -PathType`, and `-ErrorAction Stop` inside try/catch. Temp files go under `$env:TEMP` and are removed afterward.
-- Keep README.md current (project structure, purpose of every user-facing file and directory, prerequisites, configuration, usage) and keep its note that AI/KI tooling supported creation of the module. After code changes, verify that examples, file structure, and guidelines still match the codebase. Commit messages describe what changed and why.
+- Keep README.md current (project structure, purpose of every user-facing file and directory, prerequisites, configuration, usage, license) and keep its note that AI/KI tooling supported creation of the module. After code changes, verify that examples, file structure, and guidelines still match the codebase. Commit messages describe what changed and why.
 - Standalone .ps1 scripts without a manifest carry a version number in their help block and keep it current when behavior changes; scripts shipped in the module's release ZIP (the installer) use the manifest version instead.
 
 ## Logging, Errors, and Security
