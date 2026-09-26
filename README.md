@@ -7,13 +7,16 @@ This module was primarily created for personal use.
 
 ```text
 DonGrobione.StratoHiDriveUtils/
-|-- License.md                            # GNU AGPL-3.0 license for this project
-|-- Install-StratoHiDriveUtils.ps1        # Installer for the latest release, also included in the release ZIP
+|-- CHANGELOG.md                          # Version history
 |-- DonGrobione.StratoHiDriveUtils.psd1   # Module manifest
 |-- DonGrobione.StratoHiDriveUtils.psm1   # Main module with exported functions
+|-- Install-StratoHiDriveUtils.ps1        # Installer for the latest release, also included in the release ZIP
+|-- LICENSE                               # GNU AGPL-3.0 license for this project
 |-- README.md                             # This documentation
-`-- Tests/
-    `-- DonGrobione.StratoHiDriveUtils.Tests.ps1  # Pester tests, not part of the release ZIP
+`-- Tests/                                # Pester tests, not part of the release ZIP
+    |-- DonGrobione.StratoHiDriveUtils.Tests.ps1  # Tests for the manifest, packaging, and module functions
+    |-- Install-StratoHiDriveUtils.Tests.ps1      # Tests for the installer
+    `-- TestHelpers.ps1                           # Shared test fixtures
 ```
 
 ## Module Overview
@@ -105,7 +108,7 @@ Start-HiDrive
 ```
 
 `Start-HiDrive` checks common install paths and starts `HiDrive.App.exe`.
-If no executable is found, the function throws an error.
+If no executable is found, the function throws a terminating error with the ID `HiDriveExecutableNotFound`.
 
 ### 2) Stop HiDrive
 
@@ -157,6 +160,7 @@ After a successful update, older version folders and flat installation files wit
 Old items that cannot be removed are listed in the `FailedRemovals` property of the returned status object and reported as a warning.
 The module must be located in the current PowerShell version's `PSModulePath` and exist in only one of its entries.
 Existing Git installations must be replaced with the ZIP release first by running the installer; the update command does not overwrite a Git working tree.
+Failures are terminating errors with IDs that start with `HiDrive`, for example `HiDriveGitInstallation`, `HiDriveDuplicateInstallation`, or `HiDriveReleaseVersionMismatch`, so scripts can check `$_.FullyQualifiedErrorId` in a `catch` block.
 If the update fails, reinstall the module with the installer as described under Installation.
 
 ```powershell
@@ -210,14 +214,16 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `DonGrobione.StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `3.0.0`.
+- Current manifest version: `3.1.0`.
 - The module file `DonGrobione.StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 - Versions follow Semantic Versioning: the major version increases for breaking changes such as renamed functions or a changed installation layout, the minor version for new features, and the patch version for fixes.
 - Every release ZIP contains the files listed in `FileList` of the manifest, including `Install-StratoHiDriveUtils.ps1`.
+- `CHANGELOG.md` lists the changes of every version, and `ReleaseNotes` in the manifest summarizes the current version.
 
 ### Tests
 
-The Pester 5 tests in `Tests/` check the manifest, the release packaging, code quality with PSScriptAnalyzer, the comment-based help, all exported functions, and the installer.
+The Pester 5 tests in `Tests/` check the manifest, the release packaging, the project documents, code quality with PSScriptAnalyzer, the comment-based help, all exported functions, and the installer.
+Each script has its own test file named `Tests/<ScriptName>.Tests.ps1`.
 They run in isolated `TestDrive` folders with mocked GitHub calls and never change real installations.
 Run them in Windows PowerShell 5.1 from the repository root:
 
@@ -231,9 +237,10 @@ GitHub Actions runs the same tests for pull requests and for pushes to other bra
 
 ### Create a New Release
 
-1. Update `ModuleVersion` in `DonGrobione.StratoHiDriveUtils.psd1`, for example from `2.0.0` to `2.0.1`.
-2. Commit the changes and merge them into `main`.
-3. Push `main` to GitHub.
+1. Update `ModuleVersion` and `ReleaseNotes` in `DonGrobione.StratoHiDriveUtils.psd1`, for example from `2.0.0` to `2.0.1`.
+2. Add a section for the new version at the top of `CHANGELOG.md` and update the current version under Versioning in this README.
+3. Commit the changes and merge them into `main`.
+4. Push `main` to GitHub.
 
 The GitHub Actions workflow runs automatically when `main` is updated.
 It first runs the Pester tests and stops without a release if any test fails.
@@ -244,7 +251,7 @@ For version `2.0.0`, the workflow creates tag `v2.0.0` and release file `DonGrob
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
-See `License.md` for the full license text.
+See `LICENSE` for the full license text.
 
 ## Disclaimer
 

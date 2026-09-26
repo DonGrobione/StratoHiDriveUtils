@@ -1,6 +1,6 @@
 @{
     RootModule = 'DonGrobione.StratoHiDriveUtils.psm1'
-    ModuleVersion = '3.0.0'
+    ModuleVersion = '3.1.0'
     GUID = '3f7a9868-f796-4d67-8f86-b77767531bb4'
     Author = 'DonGrobione'
     CompanyName = 'Independent'
@@ -21,10 +21,11 @@
     AliasesToExport = @()
 
     FileList = @(
+        'CHANGELOG.md'
         'DonGrobione.StratoHiDriveUtils.psd1'
         'DonGrobione.StratoHiDriveUtils.psm1'
         'Install-StratoHiDriveUtils.ps1'
-        'License.md'
+        'LICENSE'
         'README.md'
     )
 
@@ -32,9 +33,8 @@
         PSData = @{
             Tags = @('HiDrive', 'STRATO', 'CloudStorage', 'Sync', 'Windows', 'PSEdition_Desktop')
             ProjectUri = 'https://github.com/DonGrobione/StratoHiDriveUtils'
-            LicenseUri = 'https://github.com/DonGrobione/StratoHiDriveUtils/blob/main/License.md'
-            ReleaseNotes = 'Breaking change: Update-StratoHiDriveUtils was renamed to Update-HiDriveUtility. Reinstall with Install-StratoHiDriveUtils.ps1 when upgrading from 2.x. Full history: https://github.com/DonGrobione/StratoHiDriveUtils/releases'
-            Contact = 'dongrobione@proton.me'
+            LicenseUri = 'https://github.com/DonGrobione/StratoHiDriveUtils/blob/main/LICENSE'
+            ReleaseNotes = '3.1.0: Start-HiDrive and Update-HiDriveUtility report terminating errors with HiDrive error IDs through ThrowTerminatingError, the license file is named LICENSE, the manifest no longer contains a contact email address, and CHANGELOG.md is part of the release. Full history: https://github.com/DonGrobione/StratoHiDriveUtils/blob/main/CHANGELOG.md'
         }
     }
 }

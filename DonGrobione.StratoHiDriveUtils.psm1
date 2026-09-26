@@ -1,5 +1,29 @@
 Set-StrictMode -Version Latest
 
+# Converts a message into an ErrorRecord that exported functions pass to $PSCmdlet.ThrowTerminatingError().
+function ConvertTo-ErrorRecord {
+	[CmdletBinding()]
+	[OutputType([System.Management.Automation.ErrorRecord])]
+	param(
+		[Parameter(Mandatory = $true)]
+		[ValidateNotNullOrEmpty()]
+		[string]$Message,
+
+		[Parameter(Mandatory = $true)]
+		[ValidatePattern('^HiDrive[A-Za-z]+$')]
+		[string]$ErrorId,
+
+		[Parameter(Mandatory = $true)]
+		[System.Management.Automation.ErrorCategory]$Category,
+
+		[Parameter()]
+		[object]$TargetObject
+	)
+
+	$exception = New-Object -TypeName System.InvalidOperationException -ArgumentList $Message
+	New-Object -TypeName System.Management.Automation.ErrorRecord -ArgumentList $exception, $ErrorId, $Category, $TargetObject
+}
+
 function Start-HiDrive {
 	<#
 	.SYNOPSIS
@@ -7,7 +31,7 @@ function Start-HiDrive {
 
 	.DESCRIPTION
 	Searches HiDrive.App.exe under %ProgramFiles%, %ProgramFiles(x86)%, and %LOCALAPPDATA% in the subfolder STRATO\HiDrive and starts the first match.
-	Throws a terminating error when the executable is not found in any of these paths.
+	Throws a terminating error with the ID HiDriveExecutableNotFound when the executable is not found in any of these paths.
 
 	.EXAMPLE
 	Start-HiDrive
@@ -47,7 +71,7 @@ function Start-HiDrive {
 		Select-Object -First 1
 
 	if (-not $hiDrivePath) {
-		throw 'HiDrive.App.exe was not found in known installation paths.'
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message 'HiDrive.App.exe was not found in known installation paths.' -ErrorId 'HiDriveExecutableNotFound' -Category ObjectNotFound -TargetObject $hiDrivePotentialPaths))
 	}
 
 	if ($PSCmdlet.ShouldProcess($hiDrivePath, 'Start HiDrive application')) {
@@ -214,6 +238,7 @@ function Update-HiDriveUtility {
 	After a successful installation, older version folders and flat installation files without a version folder are removed, and newer version folders are kept.
 	Old items that cannot be removed are returned in the FailedRemovals property and reported as a warning.
 	The update is refused for Git working trees and when the module exists in more than one PSModulePath entry.
+	Failures are terminating errors with IDs that start with HiDrive, for example HiDriveGitInstallation or HiDriveReleaseVersionMismatch.
 	If the update fails because of a breaking change, reinstall the module with Install-StratoHiDriveUtils.ps1.
 
 	.EXAMPLE
@@ -243,7 +268,7 @@ function Update-HiDriveUtility {
 	$modulePath = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 	$manifestPath = Join-Path $modulePath "$moduleName.psd1"
 	if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-		throw "The active module manifest was not found at '$manifestPath'."
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message "The active module manifest was not found at '$manifestPath'." -ErrorId 'HiDriveModuleManifestNotFound' -Category ObjectNotFound -TargetObject $manifestPath))
 	}
 
 	# The module runs either from a versioned folder <ModuleBase>\<ModuleName>\<Version> or from a legacy flat folder <ModuleBase>\<ModuleName>.
@@ -256,11 +281,11 @@ function Update-HiDriveUtility {
 		$moduleRoot = Split-Path -Path $modulePath -Parent
 	}
 	else {
-		throw "The active module path '$modulePath' is not a standard '$moduleName' installation path."
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message "The active module path '$modulePath' is not a standard '$moduleName' installation path." -ErrorId 'HiDriveModulePathInvalid' -Category InvalidOperation -TargetObject $modulePath))
 	}
 
 	if ((Test-Path -LiteralPath (Join-Path $moduleRoot '.git')) -or (Test-Path -LiteralPath (Join-Path $modulePath '.git'))) {
-		throw "The active module path '$modulePath' is a Git installation. Replace it with the ZIP release by running the installer before using Update-HiDriveUtility."
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message "The active module path '$modulePath' is a Git installation. Replace it with the ZIP release by running the installer before using Update-HiDriveUtility." -ErrorId 'HiDriveGitInstallation' -Category InvalidOperation -TargetObject $modulePath))
 	}
 
 	$moduleBase = Split-Path -Path $moduleRoot -Parent
@@ -269,13 +294,13 @@ function Update-HiDriveUtility {
 		ForEach-Object { [System.IO.Path]::GetFullPath($_).TrimEnd('\') } |
 		Sort-Object -Unique)
 	if ($modulePathEntries -notcontains $moduleBase) {
-		throw "The active module path '$modulePath' is not located in the current PSModulePath."
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message "The active module path '$modulePath' is not located in the current PSModulePath." -ErrorId 'HiDriveModulePathNotInPSModulePath' -Category InvalidOperation -TargetObject $modulePath))
 	}
 	$moduleRoots = @($modulePathEntries |
 		ForEach-Object { Join-Path $_ $moduleName } |
 		Where-Object { Test-Path -LiteralPath $_ -PathType Container })
 	if ($moduleRoots.Count -gt 1) {
-		throw "'$moduleName' is installed in multiple PSModulePath entries. Remove the duplicates before updating: $($moduleRoots -join '; ')"
+		$PSCmdlet.ThrowTerminatingError((ConvertTo-ErrorRecord -Message "'$moduleName' is installed in multiple PSModulePath entries. Remove the duplicates before updating: $($moduleRoots -join '; ')" -ErrorId 'HiDriveDuplicateInstallation' -Category InvalidOperation -TargetObject $moduleRoots))
 	}
 
 	$localManifest = Import-PowerShellDataFile -LiteralPath $manifestPath
@@ -292,7 +317,7 @@ function Update-HiDriveUtility {
 
 		$releaseAsset = @($release.assets | Where-Object { $_.name -match "^$escapedModuleName-[0-9]+\.[0-9]+\.[0-9]+\.zip$" })
 		if ($releaseAsset.Count -ne 1) {
-			throw 'The latest GitHub release does not contain exactly one valid module ZIP asset.'
+			throw (ConvertTo-ErrorRecord -Message 'The latest GitHub release does not contain exactly one valid module ZIP asset.' -ErrorId 'HiDriveReleaseAssetInvalid' -Category InvalidData -TargetObject $release)
 		}
 
 		$remoteVersion = [version]($releaseAsset[0].name -replace "^$escapedModuleName-|\.zip$")
@@ -311,7 +336,7 @@ function Update-HiDriveUtility {
 		$isAlreadyInstalled = $false
 		if (Test-Path -LiteralPath $targetPath) {
 			if (-not (Test-Path -LiteralPath $targetManifest -PathType Leaf) -or [version](Import-PowerShellDataFile -LiteralPath $targetManifest).ModuleVersion -ne $remoteVersion) {
-				throw "The folder '$targetPath' exists but does not contain a valid $moduleName $remoteVersion installation. Remove it and run the update again."
+				throw (ConvertTo-ErrorRecord -Message "The folder '$targetPath' exists but does not contain a valid $moduleName $remoteVersion installation. Remove it and run the update again." -ErrorId 'HiDriveVersionFolderInvalid' -Category InvalidData -TargetObject $targetPath)
 			}
 			$isAlreadyInstalled = $true
 		}
@@ -335,13 +360,13 @@ function Update-HiDriveUtility {
 
 			$packageManifest = @(Get-ChildItem -LiteralPath $extractPath -Filter "$moduleName.psd1" -File -Recurse -ErrorAction Stop)
 			if ($packageManifest.Count -ne 1) {
-				throw 'The downloaded ZIP does not contain exactly one valid module manifest.'
+				throw (ConvertTo-ErrorRecord -Message 'The downloaded ZIP does not contain exactly one valid module manifest.' -ErrorId 'HiDriveReleaseManifestInvalid' -Category InvalidData -TargetObject $zipPath)
 			}
 			$packageRoot = $packageManifest[0].Directory.FullName
 			$packageData = Import-PowerShellDataFile -LiteralPath $packageManifest[0].FullName
 			$packageVersion = [version]$packageData.ModuleVersion
 			if ($packageVersion -ne $remoteVersion) {
-				throw "The ZIP asset version $remoteVersion does not match the manifest version $packageVersion."
+				throw (ConvertTo-ErrorRecord -Message "The ZIP asset version $remoteVersion does not match the manifest version $packageVersion." -ErrorId 'HiDriveReleaseVersionMismatch' -Category InvalidData -TargetObject $zipPath)
 			}
 
 			# The version folder is created by this call, so on failure it is removed again and older versions stay untouched.
@@ -355,7 +380,7 @@ function Update-HiDriveUtility {
 					Remove-Item -LiteralPath $targetPath -Recurse -Force -ErrorAction Stop
 				}
 				catch {
-					throw "Installing $moduleName $remoteVersion failed: $($installError.Exception.Message) The incomplete version folder '$targetPath' could not be removed: $($_.Exception.Message)"
+					throw (ConvertTo-ErrorRecord -Message "Installing $moduleName $remoteVersion failed: $($installError.Exception.Message) The incomplete version folder '$targetPath' could not be removed: $($_.Exception.Message)" -ErrorId 'HiDriveIncompleteVersionFolder' -Category WriteError -TargetObject $targetPath)
 				}
 				throw $installError
 			}
@@ -391,6 +416,9 @@ function Update-HiDriveUtility {
 			FailedRemovals = $failedRemovals
 			ReloadRequired = $true
 		}
+	}
+	catch {
+		$PSCmdlet.ThrowTerminatingError($_)
 	}
 	finally {
 		if ($temporaryRoot -and (Test-Path -LiteralPath $temporaryRoot)) {

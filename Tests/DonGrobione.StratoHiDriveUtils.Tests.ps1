@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-Pester tests for the DonGrobione.StratoHiDriveUtils module and its installer.
+Pester tests for the DonGrobione.StratoHiDriveUtils module.
 
 .DESCRIPTION
-Validates the module manifest, the release packaging, code quality, comment-based help, and the behavior of every exported function and of Install-StratoHiDriveUtils.ps1.
+Validates the module manifest, the release packaging, the project documents, code quality, comment-based help, and the behavior of every exported function.
 All file system changes happen in the Pester TestDrive, and GitHub calls are replaced by mocks that serve a release ZIP built from the working tree.
 Requires Windows PowerShell 5.1, Pester 5, and PSScriptAnalyzer.
 
@@ -17,8 +17,6 @@ Runs all tests from the repository root.
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.5.0' }
 
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '', Justification = 'Pester shares variables between discovery, setup, and test blocks.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseShouldProcessForStateChangingFunctions', '', Justification = 'Test helpers only create fixtures in the Pester TestDrive.')]
-[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingInvokeExpression', '', Justification = 'Reproduces the documented irm | iex installation of the installer.')]
 param()
 
 Set-StrictMode -Version Latest
@@ -27,71 +25,12 @@ BeforeDiscovery {
 	$repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
 	$manifestData = Import-PowerShellDataFile -LiteralPath (Join-Path $repositoryRoot 'DonGrobione.StratoHiDriveUtils.psd1')
 	$exportedFunctionNames = @($manifestData.FunctionsToExport | ForEach-Object { @{ Name = $_ } })
+	$scriptFileNames = @($manifestData.FileList | Where-Object { $_ -match '\.psm?1$' } | ForEach-Object { @{ Name = $_ } })
+	$parsedFileNames = @($scriptFileNames) + @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter '*.ps1' -File | ForEach-Object { @{ Name = "Tests\$($_.Name)" } })
 }
 
 BeforeAll {
-	$script:moduleName = 'DonGrobione.StratoHiDriveUtils'
-	$script:repositoryRoot = Split-Path -Path $PSScriptRoot -Parent
-	$script:manifestPath = Join-Path $script:repositoryRoot "$script:moduleName.psd1"
-	$script:installerPath = Join-Path $script:repositoryRoot 'Install-StratoHiDriveUtils.ps1'
-	$script:manifestData = Import-PowerShellDataFile -LiteralPath $script:manifestPath
-	$script:releaseVersion = [version]$script:manifestData.ModuleVersion
-	$script:projectUri = $script:manifestData.PrivateData.PSData.ProjectUri
-
-	# Returns the tracked files that the release workflow packs into the ZIP, using the exclusions from the workflow itself.
-	function Get-ShippedFile {
-		$workflow = Get-Content -LiteralPath (Join-Path $script:repositoryRoot '.github\workflows\create-powershell-release.yml') -Raw
-		$command = [regex]::Match($workflow, 'git ls-files (?<Arguments>[^>]+)>').Groups['Arguments'].Value
-		$exclusions = @([regex]::Matches($command, "'(?<Pathspec>[^']+)'") | ForEach-Object { $_.Groups['Pathspec'].Value })
-		Push-Location -LiteralPath $script:repositoryRoot
-		try {
-			@(git ls-files @exclusions | Sort-Object)
-		}
-		finally {
-			Pop-Location
-		}
-	}
-
-	# Copies the shipped module files into a folder and sets the manifest version, simulating an installed release.
-	function New-TestInstallation {
-		param(
-			[string]$Path,
-			[string]$Version
-		)
-
-		New-Item -ItemType Directory -Path $Path -Force | Out-Null
-		foreach ($file in $script:manifestData.FileList) {
-			Copy-Item -LiteralPath (Join-Path $script:repositoryRoot $file) -Destination $Path
-		}
-		$installedManifest = Join-Path $Path "$script:moduleName.psd1"
-		(Get-Content -LiteralPath $installedManifest -Raw) -replace "ModuleVersion = '[^']+'", "ModuleVersion = '$Version'" |
-			Set-Content -LiteralPath $installedManifest -Encoding UTF8
-	}
-
-	# Builds a release ZIP from the shipped module files with the given manifest version.
-	function New-TestReleaseZip {
-		param(
-			[string]$Path,
-			[string]$ManifestVersion
-		)
-
-		$sourcePath = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
-		New-TestInstallation -Path $sourcePath -Version $ManifestVersion
-		Compress-Archive -Path (Join-Path $sourcePath '*') -DestinationPath $Path
-	}
-
-	# Returns a fake GitHub releases/latest response for the current release version.
-	function Get-TestRelease {
-		[pscustomobject]@{
-			assets = @(
-				[pscustomobject]@{
-					name = "$script:moduleName-$script:releaseVersion.zip"
-					browser_download_url = 'https://example.invalid/release.zip'
-				}
-			)
-		}
-	}
-
+	. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 	$script:releaseZip = Join-Path $TestDrive 'release.zip'
 	New-TestReleaseZip -Path $script:releaseZip -ManifestVersion $script:releaseVersion.ToString()
 	$script:mismatchedReleaseZip = Join-Path $TestDrive 'mismatched.zip'
@@ -114,6 +53,7 @@ Describe 'Module manifest' {
 	}
 
 	It 'contains the PowerShell Gallery metadata' {
+		$script:manifestData.Author | Should -Be 'DonGrobione'
 		foreach ($key in 'Author', 'CompanyName', 'Copyright', 'Description', 'GUID') {
 			$script:manifestData[$key] | Should -Not -BeNullOrEmpty -Because "$key is required"
 		}
@@ -125,6 +65,9 @@ Describe 'Module manifest' {
 		$psData.Tags | Should -Contain 'Windows'
 		$psData.Tags | Should -Contain 'PSEdition_Desktop'
 		@($psData.Tags | Where-Object { $_ -match '\s' }) | Should -BeNullOrEmpty
+		$psData.ProjectUri | Should -Be 'https://github.com/DonGrobione/StratoHiDriveUtils'
+		$psData.LicenseUri | Should -Be "$($psData.ProjectUri)/blob/main/LICENSE"
+		$psData.ReleaseNotes | Should -Match "^$([regex]::Escape($script:releaseVersion.ToString())):"
 	}
 
 	It 'exports exactly the functions listed in FunctionsToExport and nothing else' {
@@ -152,12 +95,29 @@ Describe 'Module manifest' {
 	}
 }
 
+Describe 'Project documents' {
+	It 'has README.md, LICENSE, and CHANGELOG.md at the project root' {
+		foreach ($document in 'README.md', 'LICENSE', 'CHANGELOG.md') {
+			Join-Path $script:repositoryRoot $document | Should -Exist
+		}
+		Get-Content -LiteralPath (Join-Path $script:repositoryRoot 'LICENSE') -TotalCount 1 | Should -Match 'GNU AFFERO GENERAL PUBLIC LICENSE'
+	}
+
+	It 'documents the manifest version as the newest entry in CHANGELOG.md' {
+		$versionHeadings = @(Get-Content -LiteralPath (Join-Path $script:repositoryRoot 'CHANGELOG.md') | Where-Object { $_ -match '^## \[' })
+		$versionHeadings[0] | Should -Match "^## \[$([regex]::Escape($script:releaseVersion.ToString()))\] - \d{4}-\d{2}-\d{2}$"
+	}
+
+	It 'contains no email address in any shipped file' {
+		$emailPattern = '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}'
+		foreach ($file in (Get-ShippedFile)) {
+			Select-String -LiteralPath (Join-Path $script:repositoryRoot $file) -Pattern $emailPattern | Should -BeNullOrEmpty -Because "$file must not contain an email address"
+		}
+	}
+}
+
 Describe 'Code quality' {
-	It '<Name> parses without errors' -ForEach @(
-		@{ Name = 'DonGrobione.StratoHiDriveUtils.psm1' }
-		@{ Name = 'Install-StratoHiDriveUtils.ps1' }
-		@{ Name = 'Tests\DonGrobione.StratoHiDriveUtils.Tests.ps1' }
-	) {
+	It '<Name> parses without errors' -ForEach $parsedFileNames {
 		$parseErrors = $null
 		[void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:repositoryRoot $Name), [ref]$null, [ref]$parseErrors)
 		$parseErrors | Should -BeNullOrEmpty
@@ -169,6 +129,26 @@ Describe 'Code quality' {
 			Invoke-ScriptAnalyzer -Path (Join-Path $script:repositoryRoot $file)
 		}
 		@($findings | ForEach-Object { "$($_.ScriptName):$($_.Line) $($_.RuleName)" }) | Should -BeNullOrEmpty
+	}
+
+	It '<Name> has its own test file' -ForEach $scriptFileNames {
+		Join-Path $PSScriptRoot "$([System.IO.Path]::GetFileNameWithoutExtension($Name)).Tests.ps1" | Should -Exist
+	}
+
+	It 'reports terminating errors of exported functions through ThrowTerminatingError' {
+		$moduleAst = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $script:repositoryRoot "$script:moduleName.psm1"), [ref]$null, [ref]$null)
+		foreach ($functionName in $script:manifestData.FunctionsToExport) {
+			$functionAst = $moduleAst.Find({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $functionName }, $false)
+			# A throw is allowed only inside a try statement whose catch passes the error to ThrowTerminatingError.
+			$throwsOutsideTry = @($functionAst.FindAll({ param($node) $node -is [System.Management.Automation.Language.ThrowStatementAst] }, $true) | Where-Object {
+				$parent = $_.Parent
+				while ($parent -ne $functionAst -and $parent -isnot [System.Management.Automation.Language.TryStatementAst]) {
+					$parent = $parent.Parent
+				}
+				$parent -eq $functionAst
+			})
+			$throwsOutsideTry | Should -BeNullOrEmpty -Because "$functionName must report terminating errors through ThrowTerminatingError"
+		}
 	}
 }
 
@@ -285,7 +265,7 @@ Describe 'Start-HiDrive' {
 	}
 
 	It 'throws when HiDrive.App.exe is not installed' {
-		{ Start-HiDrive } | Should -Throw -ExpectedMessage '*HiDrive.App.exe was not found*'
+		{ Start-HiDrive } | Should -Throw -ExpectedMessage '*HiDrive.App.exe was not found*' -ErrorId 'HiDriveExecutableNotFound,Start-HiDrive'
 		Should -Invoke -CommandName Start-Process -ModuleName $script:moduleName -Times 0 -Exactly
 	}
 
@@ -345,7 +325,8 @@ Describe 'Stop-HiDrive' {
 		Mock -CommandName Get-Process -ModuleName $script:moduleName -MockWith { [pscustomobject]@{ ProcessName = 'HiDrive.Sync'; Id = 303; MainWindowHandle = 0 } }
 		Mock -CommandName Stop-Process -ModuleName $script:moduleName -MockWith { throw 'Access is denied.' }
 		Stop-HiDrive -ErrorAction SilentlyContinue -ErrorVariable stopErrors
-		@($stopErrors | Where-Object { $_.FullyQualifiedErrorId -like 'HiDriveProcessStopFailed*' }) | Should -HaveCount 1
+		# The ErrorVariable also collects the exception of the internally caught Stop-Process failure, which is not an ErrorRecord.
+		@($stopErrors | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] -and $_.FullyQualifiedErrorId -like 'HiDriveProcessStopFailed*' }) | Should -HaveCount 1
 	}
 }
 
@@ -431,7 +412,7 @@ Describe 'Update-HiDriveUtility' {
 		Import-TestInstallation -Path (Join-Path $moduleRoot $script:olderVersion)
 		$script:servedZip = $script:mismatchedReleaseZip
 
-		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*does not match the manifest version*'
+		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*does not match the manifest version*' -ErrorId 'HiDriveReleaseVersionMismatch,Update-HiDriveUtility'
 
 		Join-Path $moduleRoot "$script:olderVersion\$script:moduleName.psd1" | Should -Exist
 		$targetPath | Should -Not -Exist
@@ -456,7 +437,7 @@ Describe 'Update-HiDriveUtility' {
 		Set-Content -LiteralPath (Join-Path $targetPath 'foreign.txt') -Value 'foreign'
 		Import-TestInstallation -Path (Join-Path $moduleRoot $script:olderVersion)
 
-		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*does not contain a valid*'
+		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*does not contain a valid*' -ErrorId 'HiDriveVersionFolderInvalid,Update-HiDriveUtility'
 
 		Join-Path $targetPath 'foreign.txt' | Should -Exist
 		Join-Path $moduleRoot $script:olderVersion | Should -Exist
@@ -467,7 +448,17 @@ Describe 'Update-HiDriveUtility' {
 		New-Item -ItemType Directory -Path (Join-Path $moduleRoot '.git') | Out-Null
 		Import-TestInstallation -Path $moduleRoot
 
-		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*is a Git installation*'
+		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*is a Git installation*' -ErrorId 'HiDriveGitInstallation,Update-HiDriveUtility'
+	}
+
+	It 'throws HiDriveReleaseAssetInvalid when the release has no module ZIP asset' {
+		New-TestInstallation -Path (Join-Path $moduleRoot $script:olderVersion) -Version $script:olderVersion
+		Import-TestInstallation -Path (Join-Path $moduleRoot $script:olderVersion)
+		Mock -CommandName Invoke-RestMethod -ModuleName $script:moduleName -MockWith { [pscustomobject]@{ assets = @() } }
+
+		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ErrorId 'HiDriveReleaseAssetInvalid,Update-HiDriveUtility'
+
+		$targetPath | Should -Not -Exist
 	}
 
 	It 'refuses to update when the module exists in more than one PSModulePath entry' {
@@ -477,14 +468,14 @@ Describe 'Update-HiDriveUtility' {
 		$env:PSModulePath = "$moduleBase;$secondBase"
 		Import-TestInstallation -Path (Join-Path $moduleRoot $script:olderVersion)
 
-		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*multiple PSModulePath entries*'
+		{ Update-HiDriveUtility -Confirm:$false } | Should -Throw -ExpectedMessage '*multiple PSModulePath entries*' -ErrorId 'HiDriveDuplicateInstallation,Update-HiDriveUtility'
 	}
 
 	It 'reports old versions that cannot be removed without failing the update' {
 		$olderPath = Join-Path $moduleRoot $script:olderVersion
 		New-TestInstallation -Path $olderPath -Version $script:olderVersion
 		Import-TestInstallation -Path $olderPath
-		$lock = [System.IO.File]::Open((Join-Path $olderPath 'License.md'), 'Open', 'Read', 'None')
+		$lock = [System.IO.File]::Open((Join-Path $olderPath 'LICENSE'), 'Open', 'Read', 'None')
 		try {
 			$result = Update-HiDriveUtility -Confirm:$false -WarningAction SilentlyContinue -WarningVariable updateWarnings
 		}
@@ -496,83 +487,5 @@ Describe 'Update-HiDriveUtility' {
 		@($result.FailedRemovals) | Should -HaveCount 1
 		@($updateWarnings) | Should -HaveCount 1
 		Join-Path $targetPath "$script:moduleName.psd1" | Should -Exist
-	}
-}
-
-Describe 'Install-StratoHiDriveUtils.ps1' {
-	BeforeAll {
-		$script:originalModulePath = $env:PSModulePath
-	}
-
-	BeforeEach {
-		$moduleBase = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
-		$moduleRoot = Join-Path $moduleBase $script:moduleName
-		$targetPath = Join-Path $moduleRoot $script:releaseVersion.ToString()
-		New-Item -ItemType Directory -Path $moduleBase -Force | Out-Null
-		$env:PSModulePath = $moduleBase
-
-		# The installer always targets the user's Documents module folder, so the test runs a copy that targets the sandbox instead.
-		$installerSource = Get-Content -LiteralPath $script:installerPath -Raw
-		$userModuleBaseExpression = "[System.IO.Path]::GetFullPath((Join-Path `$userDocuments 'WindowsPowerShell\Modules')).TrimEnd('\')"
-		$installerSource.Contains($userModuleBaseExpression) | Should -BeTrue -Because 'the test redirects this expression to the sandbox'
-		$testInstaller = Join-Path $TestDrive "Install-$([guid]::NewGuid().ToString('N')).ps1"
-		Set-Content -LiteralPath $testInstaller -Value $installerSource.Replace($userModuleBaseExpression, "'$moduleBase'") -Encoding UTF8
-
-		# The installer runs in its own script scope, so the mocks use local variables instead of script-scoped ones.
-		$installerReleaseResponse = Get-TestRelease
-		$installerReleaseZip = $script:releaseZip
-		Mock -CommandName Invoke-RestMethod -MockWith { $installerReleaseResponse }
-		Mock -CommandName Invoke-WebRequest -MockWith { Copy-Item -LiteralPath $installerReleaseZip -Destination $OutFile }
-	}
-
-	AfterEach {
-		$env:PSModulePath = $script:originalModulePath
-	}
-
-	It 'replaces flat, Git, older, and legacy installations with the release version folder' {
-		New-TestInstallation -Path $moduleRoot -Version '2.1.0'
-		New-Item -ItemType Directory -Path (Join-Path $moduleRoot '.git') | Out-Null
-		New-TestInstallation -Path (Join-Path $moduleRoot '2.0.0') -Version '2.0.0'
-		$legacyRoot = Join-Path $moduleBase 'StratoHiDriveUtils'
-		New-Item -ItemType Directory -Path $legacyRoot | Out-Null
-		Set-Content -LiteralPath (Join-Path $legacyRoot 'StratoHiDriveUtils.psd1') -Value "@{ ModuleVersion = '1.1.6' }"
-
-		& $testInstaller -Force | Should -Match 'was installed at'
-
-		@(Get-ChildItem -LiteralPath $moduleBase -Force | Select-Object -ExpandProperty Name) | Should -Be @($script:moduleName)
-		@(Get-ChildItem -LiteralPath $moduleRoot -Force | Select-Object -ExpandProperty Name) | Should -Be @($script:releaseVersion.ToString())
-		@(Get-ChildItem -LiteralPath $targetPath -File | Select-Object -ExpandProperty Name | Sort-Object) | Should -Be @($script:manifestData.FileList | Sort-Object)
-	}
-
-	It 'makes no changes when the release version is already installed' {
-		New-TestInstallation -Path $targetPath -Version $script:releaseVersion.ToString()
-
-		& $testInstaller -Force | Should -Match 'already installed'
-
-		Should -Invoke -CommandName Invoke-WebRequest -Times 0 -Exactly
-	}
-
-	It 'makes no changes with -WhatIf' {
-		New-TestInstallation -Path (Join-Path $moduleRoot '2.0.0') -Version '2.0.0'
-
-		& $testInstaller -WhatIf | Should -Match 'No changes were made'
-
-		$targetPath | Should -Not -Exist
-		Join-Path $moduleRoot '2.0.0' | Should -Exist
-	}
-
-	It 'installs without a prompt when run through Invoke-Expression like the README command' {
-		New-TestInstallation -Path $moduleRoot -Version '2.1.0'
-
-		Get-Content -LiteralPath $testInstaller -Raw | Invoke-Expression | Should -Match 'was installed at'
-
-		Join-Path $targetPath "$script:moduleName.psd1" | Should -Exist
-		Join-Path $moduleRoot "$script:moduleName.psd1" | Should -Not -Exist
-	}
-
-	It 'throws when the target module folder is not in PSModulePath' {
-		$env:PSModulePath = Join-Path $TestDrive 'Elsewhere'
-
-		{ & $testInstaller -Force } | Should -Throw -ExpectedMessage '*is not part of the current PSModulePath*'
 	}
 }
