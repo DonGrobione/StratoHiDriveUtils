@@ -11,7 +11,9 @@ DonGrobione.StratoHiDriveUtils/
 |-- Install-StratoHiDriveUtils.ps1        # Installer for the latest release, also included in the release ZIP
 |-- DonGrobione.StratoHiDriveUtils.psd1   # Module manifest
 |-- DonGrobione.StratoHiDriveUtils.psm1   # Main module with exported functions
-`-- README.md                             # This documentation
+|-- README.md                             # This documentation
+`-- Tests/
+    `-- DonGrobione.StratoHiDriveUtils.Tests.ps1  # Pester tests, not part of the release ZIP
 ```
 
 ## Module Overview
@@ -213,6 +215,20 @@ It extracts entries matching:
 - Versions follow Semantic Versioning: the major version increases for breaking changes such as renamed functions or a changed installation layout, the minor version for new features, and the patch version for fixes.
 - Every release ZIP contains the files listed in `FileList` of the manifest, including `Install-StratoHiDriveUtils.ps1`.
 
+### Tests
+
+The Pester 5 tests in `Tests/` check the manifest, the release packaging, code quality with PSScriptAnalyzer, the comment-based help, all exported functions, and the installer.
+They run in isolated `TestDrive` folders with mocked GitHub calls and never change real installations.
+Run them in Windows PowerShell 5.1 from the repository root:
+
+```powershell
+Install-Module -Name Pester -MinimumVersion 5.5.0 -MaximumVersion 5.99.99 -Scope CurrentUser -SkipPublisherCheck
+Install-Module -Name PSScriptAnalyzer -Scope CurrentUser
+Invoke-Pester -Path .\Tests -Output Detailed
+```
+
+GitHub Actions runs the same tests for pull requests and for pushes to other branches, and before every release.
+
 ### Create a New Release
 
 1. Update `ModuleVersion` in `DonGrobione.StratoHiDriveUtils.psd1`, for example from `2.0.0` to `2.0.1`.
@@ -220,7 +236,8 @@ It extracts entries matching:
 3. Push `main` to GitHub.
 
 The GitHub Actions workflow runs automatically when `main` is updated.
-It reads the manifest version, creates `DonGrobione.StratoHiDriveUtils-<version>.zip`, creates the GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached.
+It first runs the Pester tests and stops without a release if any test fails.
+It then reads the manifest version, creates `DonGrobione.StratoHiDriveUtils-<version>.zip`, creates the GitHub tag `v<version>`, and publishes the GitHub Release with the ZIP attached.
 The tag must not already exist.
 For version `2.0.0`, the workflow creates tag `v2.0.0` and release file `DonGrobione.StratoHiDriveUtils-2.0.0.zip`.
 

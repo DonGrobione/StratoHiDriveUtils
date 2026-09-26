@@ -8,7 +8,11 @@ permissions:
   contents: write
 
 jobs:
+  test:
+    uses: ./.github/workflows/test-powershell-module.yml
+
   build-zip:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -27,7 +31,7 @@ jobs:
         shell: bash
         run: |
           ZIP_NAME="DonGrobione.StratoHiDriveUtils-${{ steps.meta.outputs.version }}.zip"
-          git ls-files ':!/.github/**' ':!/.gitignore' ':!/CLAUDE.md' > files_to_zip.txt
+          git ls-files ':!/.github/**' ':!/.gitignore' ':!/CLAUDE.md' ':!/Tests/**' > files_to_zip.txt
           if [ ! -s files_to_zip.txt ]; then
             echo "No files to archive."
             exit 1
