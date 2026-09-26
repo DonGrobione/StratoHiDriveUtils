@@ -32,7 +32,7 @@ The installer is run via `irm ... | iex` from a URL pinned to a release tag in R
 
 ## Key Behavior
 
-`Get-HiDriveSyncRoot` deliberately avoids reading HiDrive's SQLite `%LOCALAPPDATA%\HiDrive\Data\user.db` (table `User`, field `SyncFolderPath`) to stay dependency-free. It parses `FileSystemSnapshot: Get file system snapshot started. Root <path> |` or `FSW: started for root <path> |` entries from HiDrive logs, searching all candidate files newest first by LastWriteTime, and returns `$null` (no exception) when nothing matches:
+`Get-HiDriveSyncRoot` deliberately avoids reading HiDrive's SQLite `%LOCALAPPDATA%\HiDrive\Data\user.db` (table `User`, field `SyncFolderPath`) to stay dependency-free. It parses `FileSystemSnapshot: Get file system snapshot started. Root <path> |` or `FSW: started for root <path> |` entries from HiDrive logs, searching all candidate files newest first by LastWriteTime, and writes a non-terminating `HiDriveSyncRootNotFound` error (no output, no exception unless the caller sets `-ErrorAction Stop`) when nothing matches, listing any unreadable log locations in the message:
 
 - HiDrive 6.5.x writes the snapshot entry to rotating logs `log.txt`, `log.0.txt`, and so on under `%LOCALAPPDATA%\HiDrive\Logs\`.
 - Older versions and HiDrive 7.x write it to rotating logs `syncLog.txt`, `syncLog.0.txt`, and so on in subfolders of `%LOCALAPPDATA%\HiDrive\Data\` matching `^\d+\.\d+$` (for example `52794237.1`); HiDrive 7.x no longer writes it to `Logs\log.txt`.

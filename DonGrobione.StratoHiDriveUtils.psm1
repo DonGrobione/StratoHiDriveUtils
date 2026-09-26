@@ -19,17 +19,17 @@ Loads the module and stops all running HiDrive processes.
 Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
 Get-HiDriveSyncRoot
 Returns the sync root path directly, for example: C:\Users\<User>\HiDrive.
-If no entry is available in logs, the function returns $null.
+If no entry is available in logs, the function writes a non-terminating error with the ID HiDriveSyncRootNotFound and returns no output.
 
 .EXAMPLE
 Import-Module .\DonGrobione.StratoHiDriveUtils.psd1 -Force
-$syncRoot = Get-HiDriveSyncRoot
-if ($null -ne $syncRoot) {
+try {
+	$syncRoot = Get-HiDriveSyncRoot -ErrorAction Stop
 	"Sync root: $syncRoot"
-} else {
-	"No sync root entry found in HiDrive logs."
+} catch {
+	"Sync root lookup failed: $($_.Exception.Message)"
 }
-Loads the module and reads the current HiDrive sync root from logs.
+Loads the module, reads the current HiDrive sync root from logs, and lets the calling script handle a failed lookup.
 #>
 
 Set-StrictMode -Version Latest
@@ -64,6 +64,7 @@ function Start-HiDrive {
 }
 
 # Stops all running STRATO HiDrive processes gracefully when possible and forcefully as a fallback.
+# Writes a non-terminating HiDriveProcessStopFailed error for each process that cannot be force-stopped and continues with the remaining processes.
 function Stop-HiDrive {
 	[CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
 	[OutputType([void])]
@@ -96,14 +97,14 @@ function Stop-HiDrive {
 				Stop-Process -Id $process.Id -Force -ErrorAction Stop
 			}
 			catch {
-				Write-Verbose "Unable to force-stop process '$($process.ProcessName)' (PID $($process.Id))."
+				Write-Error -Message "Unable to force-stop process '$($process.ProcessName)' (PID $($process.Id)): $($_.Exception.Message)" -Exception $_.Exception -Category $_.CategoryInfo.Category -ErrorId 'HiDriveProcessStopFailed' -TargetObject $process
 			}
 		}
 	}
 }
 
 # Reads the latest HiDrive sync root path from the application and sync log files, including rotated ones, newest file first.
-# Returns null when no matching log entry is available.
+# Writes a non-terminating HiDriveSyncRootNotFound error, naming any unreadable log files, and returns no output when no matching log entry is available.
 function Get-HiDriveSyncRoot {
 	[CmdletBinding()]
 	[OutputType([string])]
@@ -111,20 +112,22 @@ function Get-HiDriveSyncRoot {
 
 	$pattern = '(?:FileSystemSnapshot: Get file system snapshot started\. Root|FSW: started for root) (?<Root>.+?)\s*\|'
 	$logFiles = @()
+	$unreadableLogs = @()
 
+	# Folders that cannot be listed yield no log files instead of extra error records.
 	$logRoot = Join-Path $env:LOCALAPPDATA 'HiDrive\Logs'
 	if (Test-Path -LiteralPath $logRoot -PathType Container) {
-		$logFiles += @(Get-ChildItem -LiteralPath $logRoot -File -Force -ErrorAction SilentlyContinue |
+		$logFiles += @(Get-ChildItem -LiteralPath $logRoot -File -Force -ErrorAction Ignore |
 			Where-Object { $_.Name -match '^log(\.\d+)?\.txt$' })
 	}
 
 	$dataRoot = Join-Path $env:LOCALAPPDATA 'HiDrive\Data'
 	if (Test-Path -LiteralPath $dataRoot -PathType Container) {
-		$syncLogDirectories = Get-ChildItem -LiteralPath $dataRoot -Directory -Recurse -Force -ErrorAction SilentlyContinue |
+		$syncLogDirectories = Get-ChildItem -LiteralPath $dataRoot -Directory -Recurse -Force -ErrorAction Ignore |
 			Where-Object { $_.Name -match '^\d+\.\d+$' }
 
 		foreach ($directory in $syncLogDirectories) {
-			$logFiles += @(Get-ChildItem -LiteralPath $directory.FullName -File -Force -ErrorAction SilentlyContinue |
+			$logFiles += @(Get-ChildItem -LiteralPath $directory.FullName -File -Force -ErrorAction Ignore |
 				Where-Object { $_.Name -match '^syncLog(\.\d+)?\.txt$' })
 		}
 	}
@@ -139,11 +142,16 @@ function Get-HiDriveSyncRoot {
 			}
 		}
 		catch {
-			Write-Verbose "Unable to read the HiDrive log at '$($logFile.FullName)'. Continuing with the next log."
+			$unreadableLogs += "'$($logFile.FullName)' ($($_.Exception.Message))"
 		}
 	}
 
-	return $null
+	$message = "No HiDrive sync root entry was found in $($logFiles.Count) HiDrive log file(s) under '$logRoot' and '$dataRoot'."
+	if ($unreadableLogs.Count -gt 0) {
+		$message += " $($unreadableLogs.Count) log file(s) could not be read: $($unreadableLogs -join '; ')."
+	}
+
+	Write-Error -Message $message -Category ObjectNotFound -ErrorId 'HiDriveSyncRootNotFound' -TargetObject $env:LOCALAPPDATA
 }
 
 # Downloads and installs the latest GitHub ZIP release into the active module path.

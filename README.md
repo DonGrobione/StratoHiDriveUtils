@@ -96,6 +96,7 @@ Stop-HiDrive
 `Stop-HiDrive` stops all processes whose name matches `*HiDrive*`.
 The function first sends a graceful close request and then force-stops remaining matching processes.
 If no process is running, it exits without error.
+If a remaining process cannot be force-stopped, the function writes a non-terminating error with the ID `HiDriveProcessStopFailed` for that process and continues with the others.
 In practice, `HiDrive.App` and `HiDrive.Sync` are both terminated reliably.
 
 ### 3) Read Sync Root Directory
@@ -111,7 +112,20 @@ This returns the sync root path directly (string), for example:
 C:\Users\<User>\HiDrive
 ```
 
-If no matching log entry is found, the function returns `$null`.
+If no matching log entry is found, the function writes a non-terminating error with the ID `HiDriveSyncRootNotFound` and returns no output.
+The error message names the searched log folders and any log locations that could not be read.
+The module never logs by itself, so the calling script decides how to handle and log the error.
+Use `-ErrorAction Stop` with `try`/`catch` to detect a failed lookup, because an `-ErrorVariable` can also collect read errors of individual log files that the function already handled internally:
+
+```powershell
+Import-Module DonGrobione.StratoHiDriveUtils -Force
+try {
+    $syncRoot = Get-HiDriveSyncRoot -ErrorAction Stop
+    "Sync root: $syncRoot"
+} catch {
+    "Sync root lookup failed: $($_.Exception.Message)"
+}
+```
 
 ### 4) Update from the ZIP Release
 
@@ -136,18 +150,6 @@ After a successful update, reload the module:
 ```powershell
 Remove-Module DonGrobione.StratoHiDriveUtils -Force -ErrorAction SilentlyContinue
 Import-Module DonGrobione.StratoHiDriveUtils -Force
-```
-
-Optional guarded usage:
-
-```powershell
-Import-Module DonGrobione.StratoHiDriveUtils -Force
-$syncRoot = Get-HiDriveSyncRoot
-if ($null -ne $syncRoot) {
-    "Sync root: $syncRoot"
-} else {
-    "No sync root entry found in HiDrive logs."
-}
 ```
 
 ## Log Search Behavior in `Get-HiDriveSyncRoot`
@@ -175,7 +177,7 @@ It extracts entries matching:
     - `%ProgramFiles%\STRATO\HiDrive\HiDrive.App.exe`
     - `%ProgramFiles(x86)%\STRATO\HiDrive\HiDrive.App.exe`
     - `%LOCALAPPDATA%\STRATO\HiDrive\HiDrive.App.exe`
-- `Get-HiDriveSyncRoot` returns `$null`:
+- `Get-HiDriveSyncRoot` reports `HiDriveSyncRootNotFound`:
   - HiDrive may not have completed an initial scan yet.
   - Check whether log files exist under `%LOCALAPPDATA%\HiDrive\Logs` or `%LOCALAPPDATA%\HiDrive\Data\<numeric folder>`.
   - Start HiDrive once and allow it to run briefly before trying again.
@@ -183,7 +185,7 @@ It extracts entries matching:
 ## Versioning
 
 - Module version source of truth: `DonGrobione.StratoHiDriveUtils.psd1` (`ModuleVersion`).
-- Current manifest version: `2.0.1`.
+- Current manifest version: `2.1.0`.
 - The module file `DonGrobione.StratoHiDriveUtils.psm1` does not duplicate module version metadata.
 
 ### Create a New Release
